@@ -125,14 +125,33 @@ impl Platform for WindowsPlatform {
         Ok(tree)
     }
 
-    fn kill_process(&self, pid: u32, _force: bool) -> Result<()> {
-        let process = self
-            .system
+    fn kill_process(&self, pid: u32, force: bool) -> Result<()> {
+        // Verify process exists first
+        self.system
             .process(Pid::from_u32(pid))
             .ok_or(PortlyError::ProcessNotFound(pid))?;
 
-        // sysinfo's kill() is always forceful on Windows
-        process.kill();
+        // Use Windows taskkill for better control
+        // /F flag for force kill (SIGKILL equivalent)
+        // Without /F, it's a graceful termination (SIGTERM equivalent)
+        let mut cmd = std::process::Command::new("taskkill");
+        cmd.arg("/PID").arg(pid.to_string());
+
+        if force {
+            cmd.arg("/F");
+        }
+
+        let output = cmd
+            .output()
+            .map_err(|e| PortlyError::PlatformError(format!("Failed to execute taskkill: {}", e)))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(PortlyError::PlatformError(format!(
+                "Failed to kill process {}: {}",
+                pid, stderr
+            )));
+        }
 
         Ok(())
     }

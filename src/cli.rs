@@ -43,8 +43,9 @@ pub enum Commands {
 
     /// Kill process by port or PID
     Kill {
-        /// Port number or PID to kill
-        target: String,
+        /// Port numbers or PIDs to kill (e.g., 3000, 5000, 12345)
+        #[arg(required = true)]
+        targets: Vec<String>,
 
         /// Force kill without confirmation
         #[arg(short, long)]
