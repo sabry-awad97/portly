@@ -1,4 +1,5 @@
 use crate::error::Result;
+use crate::framework::FrameworkDetector;
 use crate::platform::Platform;
 use crate::process::PortInfo;
 use std::path::Path;
@@ -6,15 +7,19 @@ use std::path::Path;
 /// Port scanner orchestrator
 pub struct Scanner {
     platform: Box<dyn Platform>,
+    framework_detector: FrameworkDetector,
 }
 
 impl Scanner {
     pub fn new(platform: Box<dyn Platform>) -> Self {
-        Self { platform }
+        Self {
+            platform,
+            framework_detector: FrameworkDetector::new(),
+        }
     }
 
     /// Scan for all listening ports
-    pub fn scan(&self, show_all: bool) -> Result<Vec<PortInfo>> {
+    pub fn scan(&mut self, show_all: bool) -> Result<Vec<PortInfo>> {
         // Get raw port info from platform
         let raw_ports = self.platform.get_listening_ports()?;
 
@@ -35,8 +40,11 @@ impl Scanner {
             // Extract smart command description
             let process_name = extract_command_description(&process_info.command, &process_info.name);
 
-            // Detect framework (stub for now, will be implemented in Issue #4)
-            let framework = None;
+            // Detect framework
+            let framework = self.framework_detector.detect(
+                &process_info.command,
+                process_info.working_dir.as_deref(),
+            );
 
             // Extract project name from working directory
             let project_name = process_info
@@ -62,7 +70,7 @@ impl Scanner {
     }
 
     /// Get detailed information for a specific port
-    pub fn get_port_details(&self, port: u16) -> Result<PortInfo> {
+    pub fn get_port_details(&mut self, port: u16) -> Result<PortInfo> {
         let ports = self.scan(true)?; // Show all when looking for specific port
         ports
             .into_iter()

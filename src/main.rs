@@ -23,15 +23,15 @@ fn main() -> anyhow::Result<()> {
     let platform = get_platform();
 
     // Create scanner
-    let scanner = Scanner::new(platform);
+    let mut scanner = Scanner::new(platform);
 
     // Handle commands
     match cli.command {
         None | Some(Commands::List) => {
-            handle_list(&scanner, &cli, &config)?;
+            handle_list(&mut scanner, &cli, &config)?;
         }
         Some(Commands::Details { port, no_prompt }) => {
-            handle_details(&scanner, port, no_prompt, cli.json)?;
+            handle_details(&mut scanner, port, no_prompt, cli.json)?;
         }
         Some(Commands::Kill { target, force }) => {
             handle_kill(&target, force)?;
@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
             handle_ps(&cli, &config)?;
         }
         Some(Commands::Watch { interval }) => {
-            handle_watch(&scanner, interval, &cli, &config)?;
+            handle_watch(&mut scanner, interval, &cli, &config)?;
         }
     }
 
@@ -51,7 +51,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn handle_list(
-    scanner: &Scanner,
+    scanner: &mut Scanner,
     cli: &Cli,
     _config: &config::Config,
 ) -> anyhow::Result<()> {
@@ -64,7 +64,7 @@ fn handle_list(
 }
 
 fn handle_details(
-    scanner: &Scanner,
+    scanner: &mut Scanner,
     port: u16,
     _no_prompt: bool,
     json: bool,
@@ -98,7 +98,7 @@ fn handle_ps(_cli: &Cli, _config: &config::Config) -> anyhow::Result<()> {
 }
 
 fn handle_watch(
-    _scanner: &Scanner,
+    _scanner: &mut Scanner,
     _interval: u64,
     _cli: &Cli,
     _config: &config::Config,
