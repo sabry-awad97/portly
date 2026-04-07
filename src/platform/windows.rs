@@ -1,45 +1,177 @@
 use crate::error::{PortlyError, Result};
 use crate::platform::Platform;
 use crate::process::{ProcessInfo, ProcessNode, ProcessStatus, RawPortInfo};
+use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState};
+use sysinfo::{Pid, System};
+use std::collections::HashMap;
 
 /// Windows platform implementation
-pub struct WindowsPlatform;
+pub struct WindowsPlatform {
+    system: System,
+}
 
 impl WindowsPlatform {
     pub fn new() -> Self {
-        Self
+        let mut system = System::new();
+        system.refresh_all();
+        Self { system }
     }
 }
 
 impl Platform for WindowsPlatform {
     fn get_listening_ports(&self) -> Result<Vec<RawPortInfo>> {
-        // TODO: Implement using netstat2 crate
-        // This will be implemented in Issue #3
-        Ok(Vec::new())
+        let af_flags = AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6;
+        let proto_flags = ProtocolFlags::TCP | ProtocolFlags::UDP;
+
+        let sockets = get_sockets_info(af_flags, proto_flags)
+            .map_err(|e| PortlyError::PlatformError(format!("Failed to get socket info: {}", e)))?;
+
+        let mut ports = Vec::new();
+
+        for socket in sockets {
+            // Only include listening TCP ports
+            let is_listening = matches!(
+                socket.protocol_socket_info,
+                ProtocolSocketInfo::Tcp(ref tcp) if tcp.state == TcpState::Listen
+            );
+
+            if !is_listening {
+                continue;
+            }
+
+            let (port, protocol) = match socket.protocol_socket_info {
+                ProtocolSocketInfo::Tcp(tcp) => (tcp.local_port, "TCP"),
+                ProtocolSocketInfo::Udp(udp) => (udp.local_port, "UDP"),
+            };
+
+            // Get first PID (most sockets have one PID)
+            if let Some(&pid) = socket.associated_pids.first() {
+                ports.push(RawPortInfo {
+                    port,
+                    pid,
+                    protocol: protocol.to_string(),
+                });
+            }
+        }
+
+        Ok(ports)
     }
 
-    fn get_process_info(&self, _pid: u32) -> Result<ProcessInfo> {
-        // TODO: Implement using sysinfo crate
-        // This will be implemented in Issue #3
-        Err(PortlyError::ProcessNotFound(_pid))
+    fn get_process_info(&self, pid: u32) -> Result<ProcessInfo> {
+        let process = self
+            .system
+            .process(Pid::from_u32(pid))
+            .ok_or(PortlyError::ProcessNotFound(pid))?;
+
+        let name = process.name().to_string_lossy().to_string();
+        let command = process
+            .cmd()
+            .iter()
+            .map(|s| s.to_string_lossy().to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let memory_kb = process.memory() / 1024; // Convert bytes to KB
+        let start_time = Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(process.start_time()));
+        let working_dir = process.cwd().map(|p| p.to_string_lossy().to_string());
+
+        // Determine process status
+        let status = if process.memory() == 0 {
+            ProcessStatus::Zombie
+        } else if process.parent().is_none() && pid > 1000 {
+            ProcessStatus::Orphaned
+        } else {
+            ProcessStatus::Healthy
+        };
+
+        Ok(ProcessInfo {
+            pid,
+            name,
+            command,
+            status,
+            memory_kb,
+            start_time,
+            working_dir,
+        })
     }
 
-    fn get_process_tree(&self, _pid: u32) -> Result<Vec<ProcessNode>> {
-        // TODO: Implement process tree traversal
-        // This will be implemented in Issue #5
-        Ok(Vec::new())
+    fn get_process_tree(&self, pid: u32) -> Result<Vec<ProcessNode>> {
+        let mut tree = Vec::new();
+        let mut current_pid = pid;
+        let mut depth = 0;
+
+        // Traverse up the process tree (max 8 levels)
+        while depth < 8 {
+            if let Some(process) = self.system.process(Pid::from_u32(current_pid)) {
+                let ppid = process.parent().map(|p| p.as_u32()).unwrap_or(0);
+                let name = process.name().to_string_lossy().to_string();
+
+                tree.push(ProcessNode {
+                    pid: current_pid,
+                    ppid,
+                    name,
+                });
+
+                if ppid == 0 || ppid == current_pid {
+                    break;
+                }
+
+                current_pid = ppid;
+                depth += 1;
+            } else {
+                break;
+            }
+        }
+
+        Ok(tree)
     }
 
-    fn kill_process(&self, _pid: u32, _force: bool) -> Result<()> {
-        // TODO: Implement using taskkill command
-        // This will be implemented in Issue #6
-        Err(PortlyError::ProcessNotFound(_pid))
+    fn kill_process(&self, pid: u32, _force: bool) -> Result<()> {
+        let process = self
+            .system
+            .process(Pid::from_u32(pid))
+            .ok_or(PortlyError::ProcessNotFound(pid))?;
+
+        // sysinfo's kill() is always forceful on Windows
+        process.kill();
+
+        Ok(())
     }
 
     fn get_all_processes(&self) -> Result<Vec<ProcessInfo>> {
-        // TODO: Implement using sysinfo crate
-        // This will be implemented in Issue #7
-        Ok(Vec::new())
+        let mut processes = Vec::new();
+
+        for (pid, process) in self.system.processes() {
+            let name = process.name().to_string_lossy().to_string();
+            let command = process
+                .cmd()
+                .iter()
+                .map(|s| s.to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let memory_kb = process.memory() / 1024;
+            let start_time = Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(process.start_time()));
+            let working_dir = process.cwd().map(|p| p.to_string_lossy().to_string());
+
+            let status = if process.memory() == 0 {
+                ProcessStatus::Zombie
+            } else if process.parent().is_none() && pid.as_u32() > 1000 {
+                ProcessStatus::Orphaned
+            } else {
+                ProcessStatus::Healthy
+            };
+
+            processes.push(ProcessInfo {
+                pid: pid.as_u32(),
+                name,
+                command,
+                status,
+                memory_kb,
+                start_time,
+                working_dir,
+            });
+        }
+
+        Ok(processes)
     }
 }
 
@@ -47,4 +179,47 @@ impl Default for WindowsPlatform {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Batch get process information for multiple PIDs
+pub fn batch_process_info(system: &System, pids: &[u32]) -> HashMap<u32, ProcessInfo> {
+    let mut map = HashMap::new();
+
+    for &pid in pids {
+        if let Some(process) = system.process(Pid::from_u32(pid)) {
+            let name = process.name().to_string_lossy().to_string();
+            let command = process
+                .cmd()
+                .iter()
+                .map(|s| s.to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let memory_kb = process.memory() / 1024;
+            let start_time = Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(process.start_time()));
+            let working_dir = process.cwd().map(|p| p.to_string_lossy().to_string());
+
+            let status = if process.memory() == 0 {
+                ProcessStatus::Zombie
+            } else if process.parent().is_none() && pid > 1000 {
+                ProcessStatus::Orphaned
+            } else {
+                ProcessStatus::Healthy
+            };
+
+            map.insert(
+                pid,
+                ProcessInfo {
+                    pid,
+                    name,
+                    command,
+                    status,
+                    memory_kb,
+                    start_time,
+                    working_dir,
+                },
+            );
+        }
+    }
+
+    map
 }

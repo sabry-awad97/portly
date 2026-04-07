@@ -55,7 +55,7 @@ fn handle_list(
     cli: &Cli,
     _config: &config::Config,
 ) -> anyhow::Result<()> {
-    let ports = scanner.scan().context("Failed to scan ports")?;
+    let ports = scanner.scan(cli.all).context("Failed to scan ports")?;
 
     let display = display::Display::new(!cli.no_color, cli.json);
     display.show_ports(&ports);
