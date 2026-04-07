@@ -5,6 +5,8 @@
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+**Author:** [Sabry Awad](https://github.com/sabry-awad97)
+
 Portly helps you understand what's running on your ports with beautiful tables, framework detection, Docker integration, and interactive process management.
 
 ## Features
@@ -22,7 +24,7 @@ Portly helps you understand what's running on your ports with beautiful tables, 
 ### From Source
 
 ```bash
-git clone https://github.com/portly/portly
+git clone https://github.com/sabry-awad97/portly
 cd portly
 cargo build --release
 ```
@@ -317,10 +319,13 @@ portly/
 
 Contributions welcome! Please:
 
-1. Follow Rust conventions
-2. Write tests for new features
-3. Run `cargo clippy` and `cargo fmt`
-4. Update documentation
+1. Fork the repository at [github.com/sabry-awad97/portly](https://github.com/sabry-awad97/portly)
+2. Create a feature branch
+3. Follow Rust conventions
+4. Write tests for new features
+5. Run `cargo clippy` and `cargo fmt`
+6. Update documentation
+7. Submit a pull request
 
 ## Roadmap
 

@@ -91,9 +91,9 @@ impl DockerClient {
 
     /// Parse host ports from Docker port mapping string
     /// Examples:
-    /// - "0.0.0.0:5432->5432/tcp" → [5432]
-    /// - "0.0.0.0:3000->3000/tcp, 0.0.0.0:3001->3001/tcp" → [3000, 3001]
-    /// - ":::5432->5432/tcp" → [5432]
+    /// - "0.0.0.0:5432->5432/tcp" → \[5432\]
+    /// - "0.0.0.0:3000->3000/tcp, 0.0.0.0:3001->3001/tcp" → \[3000, 3001\]
+    /// - ":::5432->5432/tcp" → \[5432\]
     fn parse_host_ports(ports_str: &str) -> Vec<u16> {
         let mut ports = Vec::new();
 
