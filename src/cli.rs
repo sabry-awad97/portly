@@ -68,6 +68,24 @@ pub enum Commands {
         #[arg(short, long, default_value = "2")]
         interval: u64,
     },
+
+    /// Manage configuration
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ConfigAction {
+    /// Initialize default config file
+    Init,
+
+    /// Show config file path
+    Path,
+
+    /// Reset config to defaults
+    Reset,
 }
 
 impl Cli {
