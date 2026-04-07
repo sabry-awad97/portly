@@ -75,7 +75,22 @@ impl Scanner {
         ports
             .into_iter()
             .find(|p| p.port == port)
-            .ok_or_else(|| crate::error::PortlyError::PortNotFound(port))
+            .ok_or(crate::error::PortlyError::PortNotFound(port))
+    }
+
+    /// Get process information by PID
+    pub fn get_process_info_by_pid(&self, pid: u32) -> Result<crate::process::ProcessInfo> {
+        self.platform.get_process_info(pid)
+    }
+
+    /// Get process tree for a PID
+    pub fn get_process_tree(&self, pid: u32) -> Result<Vec<crate::process::ProcessNode>> {
+        self.platform.get_process_tree(pid)
+    }
+
+    /// Kill a process by PID
+    pub fn kill_process(&self, pid: u32, force: bool) -> Result<()> {
+        self.platform.kill_process(pid, force)
     }
 }
 

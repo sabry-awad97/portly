@@ -1,6 +1,5 @@
 use crate::process::{PortInfo, ProcessStatus};
 use colored::*;
-use serde_json;
 use tabled::{Table, Tabled, settings::Style};
 
 /// Display module for formatting output

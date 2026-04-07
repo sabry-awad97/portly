@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 /// - Working directory markers (package.json, Cargo.toml, etc.)
 /// - Config file parsing
 /// - Docker image names
-
 pub struct FrameworkDetector {
     cache: HashMap<String, Option<String>>,
 }
