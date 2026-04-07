@@ -3,7 +3,7 @@ use crate::process::{PortInfo, ProcessInfo};
 use crate::scanner::Scanner;
 use colored::*;
 use humantime::format_duration;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::Path;
 use std::process::Command;
 use std::time::SystemTime;
@@ -94,7 +94,7 @@ pub fn show_port_details(
 /// Prompt user to kill the process
 pub fn prompt_kill_process(pid: u32, scanner: &Scanner) -> Result<()> {
     // Check if we're in a TTY
-    if !atty::is(atty::Stream::Stdin) {
+    if !std::io::stdin().is_terminal() {
         return Ok(());
     }
 

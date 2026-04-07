@@ -8,14 +8,8 @@ pub enum PortlyError {
     #[error("Process {0} not found")]
     ProcessNotFound(u32),
 
-    #[error("Permission denied: {0}")]
-    PermissionDenied(String),
-
     #[error("Platform operation failed: {0}")]
     PlatformError(String),
-
-    #[error("Configuration error: {0}")]
-    ConfigError(String),
 
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),

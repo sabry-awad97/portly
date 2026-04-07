@@ -2,7 +2,18 @@ use crate::process::{PortInfo, ProcessStatus};
 use colored::*;
 use tabled::{Table, Tabled, settings::Style};
 
-/// Display module for formatting output
+/// Display formatter for port information.
+///
+/// Handles both table and JSON output formatting with optional colors.
+///
+/// # Examples
+///
+/// ```no_run
+/// use portly::display::Display;
+///
+/// let display = Display::new(true, false); // colors enabled, not JSON
+/// display.show_ports(&ports);
+/// ```
 pub struct Display {
     use_colors: bool,
     json_mode: bool,

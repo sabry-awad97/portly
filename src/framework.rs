@@ -278,11 +278,6 @@ impl FrameworkDetector {
         // Default to Node.js if no specific framework found
         Some("Node.js".to_string())
     }
-
-    /// Clear the cache
-    pub fn clear_cache(&mut self) {
-        self.cache.clear();
-    }
 }
 
 impl Default for FrameworkDetector {

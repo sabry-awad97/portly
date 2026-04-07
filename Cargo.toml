@@ -34,7 +34,6 @@ netstat2 = "0.11.2"
 humantime = "2.3.0"
 byte-unit = "5.2.0"
 dirs = "6.0.0"
-atty = "0.2.14"
 ctrlc = "3.5.2"
 chrono = "0.4.44"
 

@@ -6,7 +6,6 @@ use std::process::Command;
 /// Provides Docker container information and port mapping
 #[derive(Debug, Clone)]
 pub struct DockerClient {
-    available: bool,
     containers: HashMap<u16, DockerContainer>,
 }
 
@@ -15,8 +14,6 @@ pub struct DockerClient {
 pub struct DockerContainer {
     pub name: String,
     pub image: String,
-    pub status: String,
-    pub ports: Vec<u16>,
 }
 
 impl DockerClient {
@@ -28,15 +25,7 @@ impl DockerClient {
             HashMap::new()
         };
 
-        Self {
-            available,
-            containers,
-        }
-    }
-
-    /// Check if Docker is available
-    pub fn is_available(&self) -> bool {
-        self.available
+        Self { containers }
     }
 
     /// Get container information for a port
@@ -80,7 +69,6 @@ impl DockerClient {
             let ports_str = parts[0];
             let name = parts[1].to_string();
             let image = parts[2].to_string();
-            let status = parts[3].to_string();
 
             // Parse host ports from port mapping
             let host_ports = Self::parse_host_ports(ports_str);
@@ -89,8 +77,6 @@ impl DockerClient {
                 let container = DockerContainer {
                     name: name.clone(),
                     image: image.clone(),
-                    status: status.clone(),
-                    ports: host_ports.clone(),
                 };
 
                 // Map each host port to this container
@@ -162,7 +148,7 @@ impl DockerClient {
     /// "Up 10 days" → "10d"
     /// "Up 2 hours" → "2h"
     /// "Up 30 minutes" → "30m"
-    pub fn parse_docker_uptime(status: &str) -> Option<String> {
+    pub fn _parse_docker_uptime(status: &str) -> Option<String> {
         let status_lower = status.to_lowercase();
 
         if !status_lower.starts_with("up ") {
@@ -273,7 +259,7 @@ mod tests {
     #[test]
     fn test_parse_docker_uptime_days() {
         assert_eq!(
-            DockerClient::parse_docker_uptime("Up 10 days"),
+            DockerClient::_parse_docker_uptime("Up 10 days"),
             Some("10d".to_string())
         );
     }
@@ -281,7 +267,7 @@ mod tests {
     #[test]
     fn test_parse_docker_uptime_hours() {
         assert_eq!(
-            DockerClient::parse_docker_uptime("Up 2 hours"),
+            DockerClient::_parse_docker_uptime("Up 2 hours"),
             Some("2h".to_string())
         );
     }
@@ -289,7 +275,7 @@ mod tests {
     #[test]
     fn test_parse_docker_uptime_minutes() {
         assert_eq!(
-            DockerClient::parse_docker_uptime("Up 30 minutes"),
+            DockerClient::_parse_docker_uptime("Up 30 minutes"),
             Some("30m".to_string())
         );
     }
@@ -297,7 +283,7 @@ mod tests {
     #[test]
     fn test_parse_docker_uptime_seconds() {
         assert_eq!(
-            DockerClient::parse_docker_uptime("Up 45 seconds"),
+            DockerClient::_parse_docker_uptime("Up 45 seconds"),
             Some("0m".to_string())
         );
     }

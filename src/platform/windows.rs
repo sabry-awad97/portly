@@ -2,7 +2,6 @@ use crate::error::{PortlyError, Result};
 use crate::platform::Platform;
 use crate::process::{ProcessInfo, ProcessNode, ProcessStatus, RawPortInfo};
 use netstat2::{AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState, get_sockets_info};
-use std::collections::HashMap;
 use sysinfo::{Pid, System};
 
 /// Windows platform implementation
@@ -39,18 +38,14 @@ impl Platform for WindowsPlatform {
                 continue;
             }
 
-            let (port, protocol) = match socket.protocol_socket_info {
-                ProtocolSocketInfo::Tcp(tcp) => (tcp.local_port, "TCP"),
-                ProtocolSocketInfo::Udp(udp) => (udp.local_port, "UDP"),
+            let port = match socket.protocol_socket_info {
+                ProtocolSocketInfo::Tcp(tcp) => tcp.local_port,
+                ProtocolSocketInfo::Udp(udp) => udp.local_port,
             };
 
             // Get first PID (most sockets have one PID)
             if let Some(&pid) = socket.associated_pids.first() {
-                ports.push(RawPortInfo {
-                    port,
-                    pid,
-                    protocol: protocol.to_string(),
-                });
+                ports.push(RawPortInfo { port, pid });
             }
         }
 
@@ -204,50 +199,4 @@ impl Default for WindowsPlatform {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Batch get process information for multiple PIDs
-pub fn batch_process_info(system: &System, pids: &[u32]) -> HashMap<u32, ProcessInfo> {
-    let mut map = HashMap::new();
-
-    for &pid in pids {
-        if let Some(process) = system.process(Pid::from_u32(pid)) {
-            let name = process.name().to_string_lossy().to_string();
-            let command = process
-                .cmd()
-                .iter()
-                .map(|s| s.to_string_lossy().to_string())
-                .collect::<Vec<_>>()
-                .join(" ");
-            let memory_kb = process.memory() / 1024;
-            let cpu_percent = process.cpu_usage();
-            let start_time =
-                Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(process.start_time()));
-            let working_dir = process.cwd().map(|p| p.to_string_lossy().to_string());
-
-            let status = if process.memory() == 0 {
-                ProcessStatus::Zombie
-            } else if process.parent().is_none() && pid > 1000 {
-                ProcessStatus::Orphaned
-            } else {
-                ProcessStatus::Healthy
-            };
-
-            map.insert(
-                pid,
-                ProcessInfo {
-                    pid,
-                    name,
-                    command,
-                    status,
-                    memory_kb,
-                    cpu_percent,
-                    start_time,
-                    working_dir,
-                },
-            );
-        }
-    }
-
-    map
 }

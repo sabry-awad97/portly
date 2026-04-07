@@ -3,7 +3,23 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-/// Configuration structure
+/// Configuration structure for Portly.
+///
+/// Manages display settings, process filters, and default flags.
+///
+/// # Examples
+///
+/// ```no_run
+/// use portly::config::Config;
+///
+/// // Load config from file or use defaults
+/// let config = Config::load()?;
+///
+/// // Create default config file
+/// let path = Config::config_path()?;
+/// Config::create_default(&path)?;
+/// # Ok::<(), anyhow::Error>(())
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Config {
     pub display: DisplayConfig,
@@ -57,7 +73,15 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Load configuration from file, creating default if missing
+    /// Load configuration from file, creating default if missing.
+    ///
+    /// Loads from `%APPDATA%\portly\config.toml` on Windows.
+    /// If the file doesn't exist, returns default configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if config file exists but cannot be read or parsed
+    #[must_use = "config should be used to configure the application"]
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path()
             .context("Failed to determine config path")?;
@@ -78,7 +102,14 @@ impl Config {
             .context("Failed to parse config file")
     }
     
-    /// Get the config file path
+    /// Get the config file path.
+    ///
+    /// Returns the platform-specific config directory path.
+    /// On Windows: `%APPDATA%\portly\config.toml`
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the config directory cannot be determined
     pub fn config_path() -> Result<PathBuf> {
         let config_dir = dirs::config_dir()
             .context("Could not find config directory")?;
@@ -86,7 +117,17 @@ impl Config {
         Ok(config_dir.join("portly").join("config.toml"))
     }
     
-    /// Create default config file
+    /// Create default config file at the specified path.
+    ///
+    /// Creates parent directories if they don't exist.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path where the config file should be created
+    ///
+    /// # Errors
+    ///
+    /// Returns error if directories cannot be created or file cannot be written
     pub fn create_default(path: &PathBuf) -> Result<()> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
@@ -256,128 +297,5 @@ colors = false
         assert!(toml_string.contains("[filters]"));
         assert!(toml_string.contains("exclude_system = true"));
         assert!(toml_string.contains("Spotify"));
-    }
-}
-
-/// Runtime configuration after merging config file with CLI flags
-#[derive(Debug, Clone, PartialEq)]
-pub struct RuntimeConfig {
-    pub colors: bool,
-    pub compact: bool,
-    pub exclude_system: bool,
-    pub exclude_processes: Vec<String>,
-    pub show_all: bool,
-    pub json_output: bool,
-}
-
-impl RuntimeConfig {
-    /// Merge config file with CLI flags (CLI takes precedence)
-    pub fn from_config_and_cli(
-        config: Config,
-        cli_colors: Option<bool>,
-        cli_compact: Option<bool>,
-        cli_show_all: Option<bool>,
-        cli_json: Option<bool>,
-    ) -> Self {
-        Self {
-            colors: cli_colors.unwrap_or(config.display.colors),
-            compact: cli_compact.unwrap_or(config.display.compact),
-            exclude_system: config.filters.exclude_system,
-            exclude_processes: config.filters.exclude_processes,
-            show_all: cli_show_all.unwrap_or(config.defaults.show_all),
-            json_output: cli_json.unwrap_or(config.defaults.json_output),
-        }
-    }
-}
-
-#[cfg(test)]
-mod runtime_tests {
-    use super::*;
-    
-    #[test]
-    fn test_runtime_config_uses_config_defaults_when_no_cli_flags() {
-        // Arrange
-        let config = Config::default();
-        
-        // Act
-        let runtime = RuntimeConfig::from_config_and_cli(
-            config.clone(),
-            None,
-            None,
-            None,
-            None,
-        );
-        
-        // Assert
-        assert_eq!(runtime.colors, config.display.colors);
-        assert_eq!(runtime.compact, config.display.compact);
-        assert_eq!(runtime.show_all, config.defaults.show_all);
-        assert_eq!(runtime.json_output, config.defaults.json_output);
-    }
-    
-    #[test]
-    fn test_runtime_config_cli_flags_override_config() {
-        // Arrange
-        let mut config = Config::default();
-        config.display.colors = true;
-        config.display.compact = false;
-        config.defaults.show_all = false;
-        config.defaults.json_output = false;
-        
-        // Act - CLI flags override config
-        let runtime = RuntimeConfig::from_config_and_cli(
-            config,
-            Some(false),  // Override colors
-            Some(true),   // Override compact
-            Some(true),   // Override show_all
-            Some(true),   // Override json
-        );
-        
-        // Assert - CLI flags take precedence
-        assert!(!runtime.colors);
-        assert!(runtime.compact);
-        assert!(runtime.show_all);
-        assert!(runtime.json_output);
-    }
-    
-    #[test]
-    fn test_runtime_config_partial_cli_overrides() {
-        // Arrange
-        let config = Config::default();
-        
-        // Act - Only some CLI flags provided
-        let runtime = RuntimeConfig::from_config_and_cli(
-            config.clone(),
-            Some(false),  // Override colors only
-            None,
-            None,
-            None,
-        );
-        
-        // Assert
-        assert!(!runtime.colors);  // Overridden
-        assert_eq!(runtime.compact, config.display.compact);  // From config
-        assert_eq!(runtime.show_all, config.defaults.show_all);  // From config
-        assert_eq!(runtime.json_output, config.defaults.json_output);  // From config
-    }
-    
-    #[test]
-    fn test_runtime_config_preserves_exclude_processes() {
-        // Arrange
-        let config = Config::default();
-        let expected_processes = config.filters.exclude_processes.clone();
-        
-        // Act
-        let runtime = RuntimeConfig::from_config_and_cli(
-            config,
-            None,
-            None,
-            None,
-            None,
-        );
-        
-        // Assert
-        assert_eq!(runtime.exclude_processes, expected_processes);
-        assert!(runtime.exclude_processes.contains(&"Spotify".to_string()));
     }
 }

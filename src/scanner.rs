@@ -5,7 +5,22 @@ use crate::platform::Platform;
 use crate::process::PortInfo;
 use std::path::Path;
 
-/// Port scanner orchestrator
+/// Port scanner orchestrator.
+///
+/// Coordinates platform-specific port scanning with framework detection
+/// and Docker integration.
+///
+/// # Examples
+///
+/// ```no_run
+/// use portly::scanner::Scanner;
+/// use portly::platform::get_platform;
+///
+/// let platform = get_platform();
+/// let mut scanner = Scanner::new(platform);
+/// let ports = scanner.scan(false)?;
+/// # Ok::<(), portly::error::PortlyError>(())
+/// ```
 pub struct Scanner {
     platform: Box<dyn Platform>,
     pub framework_detector: FrameworkDetector,
@@ -13,6 +28,11 @@ pub struct Scanner {
 }
 
 impl Scanner {
+    /// Create a new scanner with the given platform implementation.
+    ///
+    /// # Arguments
+    ///
+    /// * `platform` - Platform-specific implementation for port scanning
     pub fn new(platform: Box<dyn Platform>) -> Self {
         Self {
             platform,
@@ -21,7 +41,20 @@ impl Scanner {
         }
     }
 
-    /// Scan for all listening ports
+    /// Scan for all listening ports.
+    ///
+    /// # Arguments
+    ///
+    /// * `show_all` - If true, include system processes; if false, filter them out
+    ///
+    /// # Returns
+    ///
+    /// Vector of enriched port information with process details and framework detection
+    ///
+    /// # Errors
+    ///
+    /// Returns error if port scanning fails or process information cannot be retrieved
+    #[must_use = "scan results should be processed"]
     pub fn scan(&mut self, show_all: bool) -> Result<Vec<PortInfo>> {
         // Get raw port info from platform
         let raw_ports = self.platform.get_listening_ports()?;
@@ -82,7 +115,20 @@ impl Scanner {
         Ok(ports)
     }
 
-    /// Get detailed information for a specific port
+    /// Get detailed information for a specific port.
+    ///
+    /// # Arguments
+    ///
+    /// * `port` - Port number to inspect
+    ///
+    /// # Returns
+    ///
+    /// Detailed port information including process details
+    ///
+    /// # Errors
+    ///
+    /// Returns `PortlyError::PortNotFound` if the port is not in use
+    #[must_use = "port details should be processed"]
     pub fn get_port_details(&mut self, port: u16) -> Result<PortInfo> {
         let ports = self.scan(true)?; // Show all when looking for specific port
         ports

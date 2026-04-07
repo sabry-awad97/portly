@@ -2,143 +2,166 @@
 
 > Modern CLI tool for managing local development ports on Windows
 
-[![CI](https://github.com/portly/portly/workflows/CI/badge.svg)](https://github.com/portly/portly/actions)
+[![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Portly** helps developers understand what's running on their ports with beautiful tables, framework detection, and interactive process management.
+Portly helps you understand what's running on your ports with beautiful tables, framework detection, Docker integration, and interactive process management.
 
 ## Features
 
-- 🔍 **Instant visibility** - See all listening ports with process details
-- 🎨 **Beautiful output** - Colored tables with status indicators
-- 🔧 **Framework detection** - Automatically identifies Next.js, Vite, Django, Rust, Go, Docker
-- ⚡ **Interactive management** - Kill processes by port or PID with confirmation
-- 📊 **Process listing** - View all dev processes with CPU and memory usage
-- 🐳 **Docker integration** - Identify and manage Docker containers
-- 📝 **JSON export** - Machine-readable output for scripting
-- ⚙️ **Configuration** - Customize filters, colors, and behavior
+- 🔍 **Port Scanning** - List all listening ports with process information
+- 🎯 **Framework Detection** - Automatically detect Next.js, Rust, Python, Docker, and more
+- 🐳 **Docker Integration** - Identify Docker containers and their frameworks
+- 📊 **Process Management** - Kill processes by port or PID, clean orphaned processes
+- 👀 **Watch Mode** - Real-time monitoring of port changes
+- 📝 **JSON Output** - Machine-readable output for scripting
+- ⚙️ **Configuration** - Customize filters, colors, and defaults
 
 ## Installation
 
 ### From Source
 
 ```bash
-git clone https://github.com/portly/portly.git
+git clone https://github.com/portly/portly
 cd portly
 cargo build --release
 ```
 
 The binary will be at `target/release/portly.exe`
 
-### From Cargo (Coming Soon)
+### Add to PATH (Optional)
 
-```bash
-cargo install portly
+```powershell
+# Add to your PowerShell profile
+$env:PATH += ";C:\path\to\portly\target\release"
 ```
 
-## Usage
-
-### List all listening ports
+## Quick Start
 
 ```bash
+# List all listening ports
 portly
-# or
-portly list
-```
 
-### Show detailed information about a port
-
-```bash
+# Show detailed information for a specific port
 portly details 3000
-```
 
-### Kill a process by port
-
-```bash
+# Kill a process by port
 portly kill 3000
-```
 
-### List all dev processes
-
-```bash
-portly ps
-```
-
-### Watch for port changes
-
-```bash
+# Watch for port changes in real-time
 portly watch
-```
 
-### JSON output
-
-```bash
-portly --json
-portly details 3000 --json
+# List all dev processes (not just port-bound)
+portly ps
 ```
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `portly` or `portly list` | List all listening ports |
-| `portly details <port>` | Show detailed info about a port |
-| `portly kill <port\|pid>` | Kill process by port or PID |
-| `portly clean` | Find and kill orphaned processes |
-| `portly ps` | List all dev processes |
-| `portly watch` | Watch for port changes in real-time |
+### `portly` or `portly list`
 
-## Global Flags
-
-| Flag | Description |
-|------|-------------|
-| `--json` | Output in JSON format |
-| `--all` | Show all processes including system apps |
-| `--no-color` | Disable colored output |
-
-## Development
-
-### Prerequisites
-
-- Rust 1.85+ (2024 Edition)
-- Windows 10+ (macOS and Linux support coming soon)
-
-### Build
+List all listening ports with process information.
 
 ```bash
-# Check compilation
-cargo check
-
-# Build debug
-cargo build
-
-# Build release
-cargo build --release
+portly
+portly list
+portly list --all      # Include system processes
+portly list --json     # JSON output
 ```
 
-### Test
-
-```bash
-# Run all tests
-cargo test
-
-# Run with output
-cargo test -- --nocapture
+**Example output:**
+```
+PORT   PROCESS          PID    FRAMEWORK    PROJECT
+3000   node.exe         12345  Next.js      my-app
+5432   postgres.exe     5678   PostgreSQL   [Docker]
+8080   rust.exe         9012   Rust         portly
 ```
 
-### Lint
+### `portly details <port>`
+
+Show detailed information about a specific port.
 
 ```bash
-# Run clippy
-cargo clippy -- -W clippy::all
+portly details 3000
+portly details 3000 --no-prompt  # Skip kill confirmation
+portly details 3000 --json
+```
 
-# Format code
-cargo fmt
+**Shows:**
+- Process name and PID
+- Command line
+- Memory usage
+- Uptime
+- Working directory
+- Git branch (if in a git repo)
+- Process tree
+- Interactive kill prompt
+
+### `portly kill <targets...>`
+
+Kill processes by port or PID.
+
+```bash
+portly kill 3000           # Kill process on port 3000
+portly kill 3000 5000      # Kill multiple ports
+portly kill 12345          # Kill by PID
+portly kill 3000 -f        # Force kill (SIGKILL)
+```
+
+### `portly clean`
+
+Find and kill orphaned/zombie processes.
+
+```bash
+portly clean              # Dry-run (show what would be killed)
+portly clean --execute    # Actually kill orphaned processes
+```
+
+### `portly ps`
+
+List all development processes (not just port-bound).
+
+```bash
+portly ps
+portly ps --all     # Include system processes
+portly ps --json
+```
+
+**Shows:**
+- All Node.js, Python, Rust, Go processes
+- Docker containers
+- CPU and memory usage
+- Color-coded by CPU usage (red >25%, yellow >5%, green ≤5%)
+
+### `portly watch`
+
+Watch for port changes in real-time.
+
+```bash
+portly watch
+portly watch -i 5    # Update every 5 seconds (default: 2)
+```
+
+**Shows:**
+- Timestamp for each change
+- NEW ports (green)
+- CLOSED ports (red)
+- Press Ctrl+C to stop
+
+### `portly config`
+
+Manage configuration.
+
+```bash
+portly config init    # Create default config file
+portly config path    # Show config file location
+portly config reset   # Reset to defaults
 ```
 
 ## Configuration
 
-Portly can be configured via `%APPDATA%\portly\config.toml`:
+Config file location: `%APPDATA%\portly\config.toml`
+
+### Default Configuration
 
 ```toml
 [display]
@@ -147,31 +170,179 @@ compact = false
 
 [filters]
 exclude_system = true
-exclude_processes = ["Spotify", "Chrome", "Slack"]
+exclude_processes = [
+    "Spotify",
+    "Chrome",
+    "Firefox",
+    "Slack",
+    "Discord",
+    "Code",
+    "Teams",
+]
 
 [defaults]
 show_all = false
 json_output = false
 ```
 
-## Project Status
+### Customization
 
-Portly is under active development. Current milestone: **v0.1.0 (MVP)**
+Edit the config file to:
+- Exclude specific processes from listings
+- Disable colors for piping to files
+- Change default flags
 
-See [issues/](issues/) for implementation roadmap.
+## Global Flags
+
+These flags work with all commands:
+
+- `--json` - Output in JSON format
+- `--all` - Show all processes (including system)
+- `--no-color` - Disable colored output
+
+## Framework Detection
+
+Portly automatically detects:
+
+- **Next.js** - `next dev`, `next start`
+- **Vite** - `vite`, `vite dev`
+- **Rust** - `cargo run`, `cargo watch`
+- **Python** - `python`, `uvicorn`, `flask`, `django`
+- **Go** - `go run`
+- **Docker** - PostgreSQL, Redis, nginx, MongoDB, MySQL, RabbitMQ, Elasticsearch
+
+## Docker Integration
+
+Portly integrates with Docker to:
+- Identify containers by port
+- Detect framework from Docker image
+- Group Docker processes in `ps` output
+
+**Graceful degradation**: Works without Docker installed.
+
+## Examples
+
+### Find what's using port 3000
+```bash
+portly details 3000
+```
+
+### Kill all Node.js processes on specific ports
+```bash
+portly kill 3000 3001 3002
+```
+
+### Monitor ports during development
+```bash
+portly watch
+```
+
+### Export port list to JSON
+```bash
+portly list --json > ports.json
+```
+
+### Find and clean orphaned processes
+```bash
+portly clean --execute
+```
+
+### See all dev processes with CPU usage
+```bash
+portly ps
+```
+
+## Development
+
+### Prerequisites
+
+- Rust 1.85+ (2024 Edition)
+- Windows 10+
+
+### Build
+
+```bash
+cargo build
+```
+
+### Test
+
+```bash
+cargo test
+```
+
+### Lint
+
+```bash
+cargo clippy -- -W clippy::all
+```
+
+### Format
+
+```bash
+cargo fmt
+```
+
+## Architecture
+
+Portly follows Clean Architecture principles:
+
+- **Platform Abstraction** - Windows-specific code isolated in `platform/` module
+- **Deep Modules** - Small interfaces, deep implementations
+- **TDD** - All features built with test-driven development
+- **No Unsafe** - Pure safe Rust throughout
+
+### Project Structure
+
+```
+portly/
+├── src/
+│   ├── main.rs           # Entry point and command handlers
+│   ├── cli.rs            # Clap command definitions
+│   ├── scanner.rs        # Port scanning orchestration
+│   ├── process.rs        # Process information types
+│   ├── framework.rs      # Framework detection
+│   ├── display.rs        # Table/JSON output
+│   ├── details.rs        # Port details view
+│   ├── config.rs         # Configuration management
+│   ├── docker.rs         # Docker integration
+│   ├── error.rs          # Error types
+│   └── platform/         # Platform abstraction
+│       ├── mod.rs        # Platform trait
+│       └── windows.rs    # Windows implementation
+└── tests/                # Integration tests
+```
 
 ## Contributing
 
-Contributions are welcome!.
+Contributions welcome! Please:
+
+1. Follow Rust conventions
+2. Write tests for new features
+3. Run `cargo clippy` and `cargo fmt`
+4. Update documentation
+
+## Roadmap
+
+- [ ] Cross-platform support (macOS, Linux)
+- [ ] Process filtering by name/pattern
+- [ ] Port history tracking
+- [ ] Export to various formats (CSV, HTML)
+- [ ] Web UI for monitoring
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details
+MIT License - see [LICENSE](LICENSE) file for details
 
 ## Acknowledgments
 
-- Built with [clap](https://github.com/clap-rs/clap), [tabled](https://github.com/zhiburt/tabled), and [sysinfo](https://github.com/GuillaumeGomez/sysinfo)
+Built with:
+- [clap](https://github.com/clap-rs/clap) - Command line parsing
+- [tabled](https://github.com/zhiburt/tabled) - Table formatting
+- [sysinfo](https://github.com/GuillaumeGomez/sysinfo) - System information
+- [netstat2](https://github.com/zhongzc/netstat2) - Network socket information
+- [colored](https://github.com/mackwic/colored) - Terminal colors
 
 ---
 
-**Tagline**: "Know your ports, love your ports"
+**Made with ❤️ for developers who need to manage their ports**

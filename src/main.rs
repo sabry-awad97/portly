@@ -716,7 +716,8 @@ fn group_docker_processes(
     }
 
     // Find daemon (lowest PID)
-    let daemon = docker_procs.iter().min_by_key(|p| p.pid).unwrap();
+    let daemon = docker_procs.iter().min_by_key(|p| p.pid)
+        .expect("docker_procs is non-empty (checked above)");
 
     // Sum resources
     let total_cpu: f32 = docker_procs.iter().map(|p| p.cpu_percent).sum();
@@ -825,9 +826,9 @@ fn format_uptime_ps(start_time: Option<std::time::SystemTime>) -> String {
     };
 
     let total_secs = duration.as_secs();
-    let days = total_secs / 86400;
-    let hours = (total_secs % 86400) / 3600;
-    let minutes = (total_secs % 3600) / 60;
+    let days = total_secs.saturating_div(86400);
+    let hours = (total_secs % 86400).saturating_div(3600);
+    let minutes = (total_secs % 3600).saturating_div(60);
 
     if days > 0 {
         format!("{}d {}h", days, hours)

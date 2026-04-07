@@ -9,7 +9,7 @@ pub enum ProcessStatus {
 }
 
 /// Basic process information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ProcessInfo {
     pub pid: u32,
     pub name: String,
@@ -34,11 +34,10 @@ pub struct ProcessNode {
 pub struct RawPortInfo {
     pub port: u16,
     pub pid: u32,
-    pub protocol: String,
 }
 
 /// Enriched port information with process details
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PortInfo {
     pub port: u16,
     pub pid: u32,
