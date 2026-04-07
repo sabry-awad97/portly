@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Framework detection module
-/// 
+///
 /// Detects development frameworks from:
 /// - Command line arguments
 /// - Working directory markers (package.json, Cargo.toml, etc.)

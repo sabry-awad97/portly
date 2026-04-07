@@ -1,9 +1,9 @@
 use crate::error::{PortlyError, Result};
 use crate::platform::Platform;
 use crate::process::{ProcessInfo, ProcessNode, ProcessStatus, RawPortInfo};
-use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState};
-use sysinfo::{Pid, System};
+use netstat2::{AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState, get_sockets_info};
 use std::collections::HashMap;
+use sysinfo::{Pid, System};
 
 /// Windows platform implementation
 pub struct WindowsPlatform {
@@ -71,7 +71,9 @@ impl Platform for WindowsPlatform {
             .collect::<Vec<_>>()
             .join(" ");
         let memory_kb = process.memory() / 1024; // Convert bytes to KB
-        let start_time = Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(process.start_time()));
+        let cpu_percent = process.cpu_usage();
+        let start_time =
+            Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(process.start_time()));
         let working_dir = process.cwd().map(|p| p.to_string_lossy().to_string());
 
         // Determine process status
@@ -89,6 +91,7 @@ impl Platform for WindowsPlatform {
             command,
             status,
             memory_kb,
+            cpu_percent,
             start_time,
             working_dir,
         })
@@ -141,9 +144,9 @@ impl Platform for WindowsPlatform {
             cmd.arg("/F");
         }
 
-        let output = cmd
-            .output()
-            .map_err(|e| PortlyError::PlatformError(format!("Failed to execute taskkill: {}", e)))?;
+        let output = cmd.output().map_err(|e| {
+            PortlyError::PlatformError(format!("Failed to execute taskkill: {}", e))
+        })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -168,7 +171,9 @@ impl Platform for WindowsPlatform {
                 .collect::<Vec<_>>()
                 .join(" ");
             let memory_kb = process.memory() / 1024;
-            let start_time = Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(process.start_time()));
+            let cpu_percent = process.cpu_usage();
+            let start_time =
+                Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(process.start_time()));
             let working_dir = process.cwd().map(|p| p.to_string_lossy().to_string());
 
             let status = if process.memory() == 0 {
@@ -185,6 +190,7 @@ impl Platform for WindowsPlatform {
                 command,
                 status,
                 memory_kb,
+                cpu_percent,
                 start_time,
                 working_dir,
             });
@@ -214,7 +220,9 @@ pub fn batch_process_info(system: &System, pids: &[u32]) -> HashMap<u32, Process
                 .collect::<Vec<_>>()
                 .join(" ");
             let memory_kb = process.memory() / 1024;
-            let start_time = Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(process.start_time()));
+            let cpu_percent = process.cpu_usage();
+            let start_time =
+                Some(std::time::UNIX_EPOCH + std::time::Duration::from_secs(process.start_time()));
             let working_dir = process.cwd().map(|p| p.to_string_lossy().to_string());
 
             let status = if process.memory() == 0 {
@@ -233,6 +241,7 @@ pub fn batch_process_info(system: &System, pids: &[u32]) -> HashMap<u32, Process
                     command,
                     status,
                     memory_kb,
+                    cpu_percent,
                     start_time,
                     working_dir,
                 },

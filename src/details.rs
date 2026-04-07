@@ -23,18 +23,26 @@ pub fn show_port_details(
     // Process information
     println!("{:<16}{}", "Process", process_info.name);
     println!("{:<16}{}", "PID", process_info.pid);
-    println!("{:<16}{}", "Status", format_status(process_info.status, use_colors));
-    
+    println!(
+        "{:<16}{}",
+        "Status",
+        format_status(process_info.status, use_colors)
+    );
+
     if let Some(ref framework) = port_info.framework {
-        println!("{:<16}{}", "Framework", format_framework(framework, use_colors));
+        println!(
+            "{:<16}{}",
+            "Framework",
+            format_framework(framework, use_colors)
+        );
     }
-    
+
     println!("{:<16}{}", "Memory", format_memory(process_info.memory_kb));
-    
+
     if let Some(start_time) = process_info.start_time {
         println!("{:<16}{}", "Uptime", format_uptime(start_time));
     }
-    
+
     println!();
 
     // Location information
@@ -42,20 +50,20 @@ pub fn show_port_details(
         println!("Location");
         println!("──────────────────────");
         println!();
-        
+
         if let Some(ref dir) = process_info.working_dir {
             println!("{:<16}{}", "Directory", dir);
-            
+
             // Try to get git branch
             if let Some(branch) = get_git_branch(Path::new(dir)) {
                 println!("{:<16}{}", "Branch", branch);
             }
         }
-        
+
         if let Some(ref project) = port_info.project_name {
             println!("{:<16}{}", "Project", project);
         }
-        
+
         println!();
     }
 
@@ -110,7 +118,7 @@ pub fn prompt_kill_process(pid: u32, scanner: &Scanner) -> Result<()> {
 /// Format process status with colors
 fn format_status(status: crate::process::ProcessStatus, use_colors: bool) -> String {
     use crate::process::ProcessStatus;
-    
+
     if !use_colors {
         return match status {
             ProcessStatus::Healthy => "● healthy".to_string(),
@@ -149,9 +157,9 @@ fn format_framework(framework: &str, use_colors: bool) -> String {
 }
 
 /// Format memory in MB or GB
-fn format_memory(memory_kb: u64) -> String {
+pub fn format_memory(memory_kb: u64) -> String {
     let memory_mb = memory_kb as f64 / 1024.0;
-    
+
     if memory_mb >= 1024.0 {
         let memory_gb = memory_mb / 1024.0;
         format!("{:.1} GB", memory_gb)
@@ -163,7 +171,7 @@ fn format_memory(memory_kb: u64) -> String {
 /// Format uptime as human-readable duration
 fn format_uptime(start_time: SystemTime) -> String {
     let now = SystemTime::now();
-    
+
     match now.duration_since(start_time) {
         Ok(duration) => format_duration(duration).to_string(),
         Err(_) => "unknown".to_string(),
@@ -198,7 +206,7 @@ fn display_process_tree(tree: &[crate::process::ProcessNode]) {
     for (i, node) in tree.iter().rev().enumerate() {
         let indent = "│  ".repeat(i);
         let connector = if i == 0 { "├─" } else { "└─" };
-        
+
         println!("{}{} {} ({})", indent, connector, node.name, node.pid);
     }
 }

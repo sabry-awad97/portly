@@ -7,7 +7,7 @@ use std::path::Path;
 /// Port scanner orchestrator
 pub struct Scanner {
     platform: Box<dyn Platform>,
-    framework_detector: FrameworkDetector,
+    pub framework_detector: FrameworkDetector,
 }
 
 impl Scanner {
@@ -38,13 +38,13 @@ impl Scanner {
             }
 
             // Extract smart command description
-            let process_name = extract_command_description(&process_info.command, &process_info.name);
+            let process_name =
+                extract_command_description(&process_info.command, &process_info.name);
 
             // Detect framework
-            let framework = self.framework_detector.detect(
-                &process_info.command,
-                process_info.working_dir.as_deref(),
-            );
+            let framework = self
+                .framework_detector
+                .detect(&process_info.command, process_info.working_dir.as_deref());
 
             // Extract project name from working directory
             let project_name = process_info
@@ -95,7 +95,7 @@ impl Scanner {
 }
 
 /// Check if a process is a system process that should be filtered
-fn is_system_process(name: &str) -> bool {
+pub fn is_system_process(name: &str) -> bool {
     let name_lower = name.to_lowercase();
 
     // System processes
@@ -118,17 +118,8 @@ fn is_system_process(name: &str) -> bool {
 
     // User applications to filter
     const FILTERED_APPS: &[&str] = &[
-        "spotify",
-        "chrome",
-        "firefox",
-        "slack",
-        "discord",
-        "code", // VS Code
-        "teams",
-        "zoom",
-        "skype",
-        "msedge",
-        "brave",
+        "spotify", "chrome", "firefox", "slack", "discord", "code", // VS Code
+        "teams", "zoom", "skype", "msedge", "brave",
     ];
 
     SYSTEM_PROCESSES.iter().any(|&sys| name_lower.contains(sys))
@@ -160,13 +151,13 @@ fn extract_command_description(cmd_line: &str, process_name: &str) -> String {
         if !rest.is_empty() {
             // First non-flag argument is usually the script/command
             let first_arg = rest[0];
-            
+
             // Extract basename if it's a path
             let cmd_name = Path::new(first_arg)
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_else(|| first_arg.to_string());
-            
+
             // Include remaining arguments
             if rest.len() > 1 {
                 return format!("{} {}", cmd_name, rest[1..].join(" "));
@@ -243,10 +234,7 @@ mod tests {
 
     #[test]
     fn test_extract_command_description_fallback() {
-        assert_eq!(
-            extract_command_description("", "postgres"),
-            "postgres"
-        );
+        assert_eq!(extract_command_description("", "postgres"), "postgres");
         assert_eq!(
             extract_command_description("unknown command", "unknown"),
             "unknown"

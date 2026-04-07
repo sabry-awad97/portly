@@ -35,6 +35,8 @@ pub fn get_platform() -> Box<dyn Platform> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        compile_error!("Portly currently only supports Windows. macOS and Linux support coming soon.");
+        compile_error!(
+            "Portly currently only supports Windows. macOS and Linux support coming soon."
+        );
     }
 }

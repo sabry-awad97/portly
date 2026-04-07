@@ -1,5 +1,5 @@
 /// Docker integration module
-/// 
+///
 /// Provides Docker container information and port mapping
 pub struct DockerClient;
 

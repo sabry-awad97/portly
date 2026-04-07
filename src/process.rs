@@ -16,6 +16,7 @@ pub struct ProcessInfo {
     pub command: String,
     pub status: ProcessStatus,
     pub memory_kb: u64,
+    pub cpu_percent: f32,
     pub start_time: Option<std::time::SystemTime>,
     pub working_dir: Option<String>,
 }
