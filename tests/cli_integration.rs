@@ -1,90 +1,234 @@
-use std::process::Command;
+use assert_cmd::Command;
+use predicates::prelude::*;
 
 #[test]
 fn test_help_command() {
-    let output = Command::new("cargo")
-        .args(["run", "--", "--help"])
-        .output()
-        .expect("Failed to execute command");
+    Command::cargo_bin("portly")
+        .unwrap()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Portly"))
+        .stdout(predicate::str::contains("Commands"));
+}
 
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Modern") || stdout.contains("port"));
-    assert!(stdout.contains("list") || stdout.contains("Commands"));
+#[test]
+fn test_version_command() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .arg("--version")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("portly"));
+}
+
+#[test]
+fn test_list_command() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .arg("list")
+        .assert()
+        .success();
 }
 
 #[test]
 fn test_list_json_output() {
-    let output = Command::new("cargo")
-        .args(["run", "--", "list", "--json"])
-        .output()
-        .expect("Failed to execute command");
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["list", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("["));
+}
 
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    
-    // Should be valid JSON (either array or empty)
-    assert!(stdout.starts_with('[') || stdout.trim().is_empty());
+#[test]
+fn test_list_with_all_flag() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["list", "--all"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_list_with_no_color() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["list", "--no-color"])
+        .assert()
+        .success();
 }
 
 #[test]
 fn test_config_path_command() {
-    let output = Command::new("cargo")
-        .args(["run", "--", "config", "path"])
-        .output()
-        .expect("Failed to execute command");
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("portly") && stdout.contains("config.toml"));
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["config", "path"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("portly"))
+        .stdout(predicate::str::contains("config.toml"));
 }
 
 #[test]
 fn test_config_init_command() {
-    let output = Command::new("cargo")
-        .args(["run", "--", "config", "init"])
-        .output()
-        .expect("Failed to execute command");
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["config", "init"])
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("config")
+                .or(predicate::str::contains("Created"))
+                .or(predicate::str::contains("exists"))
+        );
+}
 
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("config") || stdout.contains("Created") || stdout.contains("exists"));
+#[test]
+fn test_config_reset_command() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["config", "reset"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Reset").or(predicate::str::contains("config")));
+}
+
+#[test]
+fn test_ps_command() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .arg("ps")
+        .assert()
+        .success();
 }
 
 #[test]
 fn test_ps_json_output() {
-    let output = Command::new("cargo")
-        .args(["run", "--", "ps", "--json"])
-        .output()
-        .expect("Failed to execute command");
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["ps", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("{"))
+        .stdout(predicate::str::contains("\"processes\""));
+}
 
-    // Command should succeed
-    assert!(output.status.success());
-    
-    // Output should be present (either JSON array or error message)
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.is_empty() || !output.stderr.is_empty());
+#[test]
+fn test_ps_with_all_flag() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["ps", "--all"])
+        .assert()
+        .success();
 }
 
 #[test]
 fn test_invalid_command() {
-    let output = Command::new("cargo")
-        .args(["run", "--", "invalid-command"])
-        .output()
-        .expect("Failed to execute command");
-
-    assert!(!output.status.success());
+    Command::cargo_bin("portly")
+        .unwrap()
+        .arg("invalid-command")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unrecognized").or(predicate::str::contains("invalid")));
 }
 
 #[test]
 fn test_details_invalid_port() {
-    let output = Command::new("cargo")
-        .args(["run", "--", "details", "99999"])
-        .output()
-        .expect("Failed to execute command");
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["details", "99999"])
+        .assert()
+        .failure() // Port out of range returns error code 2
+        .stderr(predicate::str::contains("not in 0..=65535"));
+}
 
-    // Should fail or show "not in use"
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stdout.contains("not in use") || stderr.contains("not in use") || !output.status.success());
+#[test]
+fn test_kill_without_target() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .arg("kill")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("required").or(predicate::str::contains("argument")));
+}
+
+#[test]
+fn test_clean_dry_run() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .arg("clean")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_watch_help() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["watch", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("watch").or(predicate::str::contains("interval")));
+}
+
+#[test]
+fn test_global_json_flag() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["--json", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("["));
+}
+
+#[test]
+fn test_global_no_color_flag() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["--no-color", "list"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_config_subcommand_help() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["config", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("init"))
+        .stdout(predicate::str::contains("path"))
+        .stdout(predicate::str::contains("reset"));
+}
+
+#[test]
+fn test_details_with_json() {
+    // Test with a port that likely doesn't exist
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["details", "65000", "--json"])
+        .assert()
+        .code(predicate::in_iter([0, 1])); // May succeed or fail depending on port availability
+}
+
+#[test]
+fn test_kill_with_force_flag() {
+    // Test that the force flag is accepted (won't actually kill anything without a valid target)
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["kill", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("force").or(predicate::str::contains("-f")));
+}
+
+#[test]
+fn test_clean_with_execute_flag() {
+    Command::cargo_bin("portly")
+        .unwrap()
+        .args(["clean", "--execute"])
+        .assert()
+        .success();
 }

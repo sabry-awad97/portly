@@ -40,3 +40,5 @@ chrono = "0.4.44"
 [dev-dependencies]
 proptest = "1.11.0"
 insta = "1.47.2"
+assert_cmd = "2.0"
+predicates = "3.1"
