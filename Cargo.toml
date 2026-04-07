@@ -1,0 +1,40 @@
+[package]
+name = "portly"
+version = "0.1.0"
+edition = "2024"
+authors = ["Portly Contributors"]
+description = "Modern CLI tool for managing local development ports on Windows"
+license = "MIT"
+repository = "https://github.com/portly/portly"
+keywords = ["cli", "ports", "development", "windows"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+# CLI
+clap = { version = "4.6.0", features = ["derive", "cargo"] }
+
+# Display
+tabled = "0.20.0"
+colored = "3.1.1"
+
+# Serialization
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+toml = "1.1.2"
+
+# Error handling
+anyhow = "1.0.102"
+thiserror = "2.0.18"
+
+# System info
+sysinfo = "0.38.4"
+netstat2 = "0.11.2"
+
+# Utilities
+humantime = "2.3.0"
+byte-unit = "5.2.0"
+dirs = "6.0.0"
+
+[dev-dependencies]
+proptest = "1.11.0"
+insta = "1.47.2"
