@@ -1,3 +1,4 @@
+use crate::docker::DockerClient;
 use crate::error::Result;
 use crate::framework::FrameworkDetector;
 use crate::platform::Platform;
@@ -8,6 +9,7 @@ use std::path::Path;
 pub struct Scanner {
     platform: Box<dyn Platform>,
     pub framework_detector: FrameworkDetector,
+    docker_client: DockerClient,
 }
 
 impl Scanner {
@@ -15,6 +17,7 @@ impl Scanner {
         Self {
             platform,
             framework_detector: FrameworkDetector::new(),
+            docker_client: DockerClient::new(),
         }
     }
 
@@ -41,17 +44,27 @@ impl Scanner {
             let process_name =
                 extract_command_description(&process_info.command, &process_info.name);
 
-            // Detect framework
-            let framework = self
-                .framework_detector
-                .detect(&process_info.command, process_info.working_dir.as_deref());
+            // Check if this port is mapped to a Docker container
+            let (framework, project_name) =
+                if let Some(container) = self.docker_client.get_container_info(raw_port.port) {
+                    // Docker container found
+                    let framework = DockerClient::detect_framework_from_image(&container.image);
+                    let project_name = Some(container.name.clone());
+                    (framework, project_name)
+                } else {
+                    // Not a Docker container, use regular detection
+                    let framework = self
+                        .framework_detector
+                        .detect(&process_info.command, process_info.working_dir.as_deref());
 
-            // Extract project name from working directory
-            let project_name = process_info
-                .working_dir
-                .as_ref()
-                .and_then(|dir| Path::new(dir).file_name())
-                .map(|name| name.to_string_lossy().to_string());
+                    let project_name = process_info
+                        .working_dir
+                        .as_ref()
+                        .and_then(|dir| Path::new(dir).file_name())
+                        .map(|name| name.to_string_lossy().to_string());
+
+                    (framework, project_name)
+                };
 
             ports.push(PortInfo {
                 port: raw_port.port,
