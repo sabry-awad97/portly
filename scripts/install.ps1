@@ -106,14 +106,21 @@ try {
 
 # Add to PATH if not present
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+$pathUpdated = $false
+
 if ($userPath -notlike "*$InstallDir*") {
     Write-Host "Adding to PATH..." -ForegroundColor Gray
     [Environment]::SetEnvironmentVariable("Path", "$userPath;$InstallDir", "User")
-    $env:Path = "$env:Path;$InstallDir"
-    Write-Host "Added to PATH (restart terminal to apply)" -ForegroundColor Green
+    $pathUpdated = $true
+    Write-Host "Added to PATH" -ForegroundColor Green
 } else {
     Write-Host "Already in PATH" -ForegroundColor Gray
 }
+
+# Refresh PATH in current session
+Write-Host "Refreshing PATH in current session..." -ForegroundColor Gray
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+Write-Host "PATH refreshed - portly command is now available!" -ForegroundColor Green
 
 # Verify installation
 $portlyExe = Join-Path $InstallDir "portly.exe"
@@ -124,7 +131,20 @@ if (Test-Path $portlyExe) {
         Write-Host "✓ Portly installed successfully!" -ForegroundColor Green
         Write-Host "  Version: $installedVersion" -ForegroundColor Gray
         Write-Host "  Location: $portlyExe" -ForegroundColor Gray
-        Write-Host "`nGet started with: portly --help" -ForegroundColor Cyan
+        
+        # Test if portly command works
+        Write-Host "`nTesting portly command..." -ForegroundColor Gray
+        $testResult = portly --version 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✓ 'portly' command is ready to use!" -ForegroundColor Green
+        } else {
+            Write-Host "Note: 'portly' command will work after restarting terminal" -ForegroundColor Yellow
+        }
+        
+        Write-Host "`nGet started with:" -ForegroundColor Cyan
+        Write-Host "  portly          # List all ports" -ForegroundColor White
+        Write-Host "  portly --help   # Show all commands" -ForegroundColor White
+        Write-Host "  portly ps       # List all processes" -ForegroundColor White
     } catch {
         Write-Host "Warning: Binary installed but version check failed" -ForegroundColor Yellow
         Write-Host "  Location: $portlyExe" -ForegroundColor Gray
