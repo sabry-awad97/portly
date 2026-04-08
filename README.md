@@ -21,6 +21,38 @@ Portly helps you understand what's running on your ports with beautiful tables, 
 
 ## Installation
 
+### Quick Install (Recommended)
+
+**Windows (PowerShell):**
+```powershell
+iwr -useb https://raw.githubusercontent.com/sabry-awad97/portly/main/scripts/install.ps1 | iex
+```
+
+**Unix-like (bash):**
+```bash
+curl -sSL https://raw.githubusercontent.com/sabry-awad97/portly/main/scripts/install.sh | bash
+```
+
+The installer will:
+- Download the latest release from GitHub
+- Install to `%LOCALAPPDATA%\portly\bin` (Windows) or `~/.local/bin` (Unix)
+- Add to your PATH automatically
+- Verify installation succeeded
+
+### Install Specific Version
+
+**Windows:**
+```powershell
+# Download and run with version parameter
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/sabry-awad97/portly/main/scripts/install.ps1" -OutFile "install.ps1"
+.\install.ps1 -Version "0.1.0"
+```
+
+**Unix:**
+```bash
+curl -sSL https://raw.githubusercontent.com/sabry-awad97/portly/main/scripts/install.sh | bash -s 0.1.0
+```
+
 ### From Source
 
 ```bash
@@ -31,12 +63,19 @@ cargo build --release
 
 The binary will be at `target/release/portly.exe`
 
-### Add to PATH (Optional)
+### Uninstall
 
+**Windows:**
 ```powershell
-# Add to your PowerShell profile
-$env:PATH += ";C:\path\to\portly\target\release"
+iwr -useb https://raw.githubusercontent.com/sabry-awad97/portly/main/scripts/uninstall.ps1 | iex
 ```
+
+**Unix:**
+```bash
+curl -sSL https://raw.githubusercontent.com/sabry-awad97/portly/main/scripts/uninstall.sh | bash
+```
+
+Add `--remove-config` flag to also remove configuration files.
 
 ## Quick Start
 
