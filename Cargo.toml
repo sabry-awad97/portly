@@ -1,6 +1,6 @@
 [package]
 name = "portly"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["Sabry Awad <dr.sabry1997@gmail.com>"]
 description = "Modern CLI tool for managing local development ports on Windows"
