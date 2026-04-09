@@ -421,7 +421,8 @@ impl Platform for MockPlatform {
                 suggestion: Some(
                     "• The process may have exited\n\
                      • Run 'portly list' to see current processes\n\
-                     • Check if you have permission to access this process".to_string()
+                     • Check if you have permission to access this process"
+                        .to_string(),
                 ),
             })
     }
@@ -443,7 +444,8 @@ impl Platform for MockPlatform {
                 suggestion: Some(
                     "• The process may have exited\n\
                      • Run 'portly list' to see current processes\n\
-                     • Check if you have permission to access this process".to_string()
+                     • Check if you have permission to access this process"
+                        .to_string(),
                 ),
             })
     }
@@ -464,7 +466,8 @@ impl Platform for MockPlatform {
                 suggestion: Some(
                     "• The process may have exited\n\
                      • Run 'portly list' to see current processes\n\
-                     • Check if you have permission to access this process".to_string()
+                     • Check if you have permission to access this process"
+                        .to_string(),
                 ),
             });
         }

@@ -53,17 +53,18 @@ impl Platform for WindowsPlatform {
     }
 
     fn get_process_info(&self, pid: u32) -> Result<ProcessInfo> {
-        let process = self
-            .system
-            .process(Pid::from_u32(pid))
-            .ok_or(PortlyError::ProcessNotFound {
-                pid,
-                suggestion: Some(
-                    "• The process may have exited\n\
+        let process =
+            self.system
+                .process(Pid::from_u32(pid))
+                .ok_or(PortlyError::ProcessNotFound {
+                    pid,
+                    suggestion: Some(
+                        "• The process may have exited\n\
                      • Run 'portly list' to see current processes\n\
-                     • Check if you have permission to access this process".to_string()
-                ),
-            })?;
+                     • Check if you have permission to access this process"
+                            .to_string(),
+                    ),
+                })?;
 
         let name = process.name().to_string_lossy().to_string();
         let command = process
@@ -139,7 +140,8 @@ impl Platform for WindowsPlatform {
                 suggestion: Some(
                     "• The process may have exited\n\
                      • Run 'portly list' to see current processes\n\
-                     • Check if you have permission to access this process".to_string()
+                     • Check if you have permission to access this process"
+                        .to_string(),
                 ),
             })?;
 

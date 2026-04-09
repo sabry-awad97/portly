@@ -36,7 +36,6 @@ impl PortlyError {
 
 pub type Result<T> = std::result::Result<T, PortlyError>;
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

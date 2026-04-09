@@ -139,7 +139,8 @@ impl Scanner {
                 suggestion: Some(
                     "• Run 'portly list' to see all listening ports\n\
                      • Check if the process is still running\n\
-                     • Try 'portly ps' to see all dev processes".to_string()
+                     • Try 'portly ps' to see all dev processes"
+                        .to_string(),
                 ),
             })
     }

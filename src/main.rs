@@ -12,10 +12,18 @@ mod scanner;
 
 use anyhow::Context;
 use cli::{Cli, Commands};
+use colored::Colorize;
 use platform::get_platform;
 use scanner::Scanner;
 
-fn main() -> anyhow::Result<()> {
+fn main() {
+    if let Err(e) = run() {
+        display_error(&e);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> anyhow::Result<()> {
     let cli = Cli::parse_args();
 
     // Load configuration
@@ -53,4 +61,32 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn display_error(error: &anyhow::Error) {
+    // Check if colors should be disabled
+    let use_color = !std::env::var("NO_COLOR").is_ok_and(|v| !v.is_empty());
+
+    // Display error header and message
+    if use_color {
+        eprintln!("{}", "Error:".red().bold());
+    } else {
+        eprintln!("Error:");
+    }
+    eprintln!("  {error}");
+
+    // Show suggestions if available
+    if let Some(portly_err) = error.downcast_ref::<error::PortlyError>()
+        && let Some(suggestion) = portly_err.suggestion()
+    {
+        eprintln!();
+        if use_color {
+            eprintln!("{}", "Suggestions:".yellow().bold());
+        } else {
+            eprintln!("Suggestions:");
+        }
+        for line in suggestion.lines() {
+            eprintln!("  {line}");
+        }
+    }
 }
