@@ -9,6 +9,7 @@ mod framework;
 mod platform;
 mod process;
 mod scanner;
+mod typo;
 
 use anyhow::Context;
 use cli::{Cli, Commands};
