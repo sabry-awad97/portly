@@ -56,7 +56,14 @@ impl Platform for WindowsPlatform {
         let process = self
             .system
             .process(Pid::from_u32(pid))
-            .ok_or(PortlyError::ProcessNotFound(pid))?;
+            .ok_or(PortlyError::ProcessNotFound {
+                pid,
+                suggestion: Some(
+                    "• The process may have exited\n\
+                     • Run 'portly list' to see current processes\n\
+                     • Check if you have permission to access this process".to_string()
+                ),
+            })?;
 
         let name = process.name().to_string_lossy().to_string();
         let command = process
@@ -127,7 +134,14 @@ impl Platform for WindowsPlatform {
         // Verify process exists first
         self.system
             .process(Pid::from_u32(pid))
-            .ok_or(PortlyError::ProcessNotFound(pid))?;
+            .ok_or(PortlyError::ProcessNotFound {
+                pid,
+                suggestion: Some(
+                    "• The process may have exited\n\
+                     • Run 'portly list' to see current processes\n\
+                     • Check if you have permission to access this process".to_string()
+                ),
+            })?;
 
         // Use Windows taskkill for better control
         // /F flag for force kill (SIGKILL equivalent)

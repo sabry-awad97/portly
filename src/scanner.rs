@@ -134,7 +134,14 @@ impl Scanner {
         ports
             .into_iter()
             .find(|p| p.port == port)
-            .ok_or(crate::error::PortlyError::PortNotFound(port))
+            .ok_or(crate::error::PortlyError::PortNotFound {
+                port,
+                suggestion: Some(
+                    "• Run 'portly list' to see all listening ports\n\
+                     • Check if the process is still running\n\
+                     • Try 'portly ps' to see all dev processes".to_string()
+                ),
+            })
     }
 
     /// Get process information by PID

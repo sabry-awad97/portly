@@ -416,7 +416,14 @@ impl Platform for MockPlatform {
         self.processes
             .get(&pid)
             .cloned()
-            .ok_or(PortlyError::ProcessNotFound(pid))
+            .ok_or(PortlyError::ProcessNotFound {
+                pid,
+                suggestion: Some(
+                    "• The process may have exited\n\
+                     • Run 'portly list' to see current processes\n\
+                     • Check if you have permission to access this process".to_string()
+                ),
+            })
     }
 
     fn get_process_tree(&self, pid: u32) -> Result<Vec<ProcessNode>> {
@@ -431,7 +438,14 @@ impl Platform for MockPlatform {
         self.process_trees
             .get(&pid)
             .cloned()
-            .ok_or(PortlyError::ProcessNotFound(pid))
+            .ok_or(PortlyError::ProcessNotFound {
+                pid,
+                suggestion: Some(
+                    "• The process may have exited\n\
+                     • Run 'portly list' to see current processes\n\
+                     • Check if you have permission to access this process".to_string()
+                ),
+            })
     }
 
     fn kill_process(&self, pid: u32, force: bool) -> Result<()> {
@@ -445,7 +459,14 @@ impl Platform for MockPlatform {
 
         // Verify process exists
         if !self.processes.contains_key(&pid) {
-            return Err(PortlyError::ProcessNotFound(pid));
+            return Err(PortlyError::ProcessNotFound {
+                pid,
+                suggestion: Some(
+                    "• The process may have exited\n\
+                     • Run 'portly list' to see current processes\n\
+                     • Check if you have permission to access this process".to_string()
+                ),
+            });
         }
 
         // Record the kill call using interior mutability
@@ -518,7 +539,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
-            PortlyError::ProcessNotFound(9999)
+            PortlyError::ProcessNotFound { pid: 9999, .. }
         ));
     }
 
@@ -552,7 +573,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
-            PortlyError::ProcessNotFound(9999)
+            PortlyError::ProcessNotFound { pid: 9999, .. }
         ));
     }
 
@@ -582,7 +603,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
-            PortlyError::ProcessNotFound(9999)
+            PortlyError::ProcessNotFound { pid: 9999, .. }
         ));
     }
 
