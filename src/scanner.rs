@@ -41,6 +41,26 @@ impl Scanner {
         }
     }
 
+    /// Create a new async scanner with Bollard-based Docker client
+    ///
+    /// # Arguments
+    ///
+    /// * `platform` - Platform-specific implementation for port scanning
+    ///
+    /// # Errors
+    ///
+    /// Returns error if Docker connection fails (gracefully falls back to empty client)
+    pub async fn new_async(platform: Box<dyn Platform>) -> Self {
+        // Try to create async Docker client, fallback to sync if it fails
+        let docker_client = DockerClient::new_async().await.unwrap_or_else(|_| DockerClient::new());
+        
+        Self {
+            platform,
+            framework_detector: FrameworkDetector::new(),
+            docker_client,
+        }
+    }
+
     /// Scan for all listening ports.
     ///
     /// # Arguments

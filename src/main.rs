@@ -17,14 +17,15 @@ use colored::Colorize;
 use platform::get_platform;
 use scanner::Scanner;
 
-fn main() {
-    if let Err(e) = run() {
+#[tokio::main]
+async fn main() {
+    if let Err(e) = run().await {
         display_error(&e);
         std::process::exit(1);
     }
 }
 
-fn run() -> anyhow::Result<()> {
+async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse_args();
 
     // Load configuration
@@ -33,8 +34,8 @@ fn run() -> anyhow::Result<()> {
     // Get platform implementation
     let platform = get_platform();
 
-    // Create scanner
-    let mut scanner = Scanner::new(platform);
+    // Create scanner with async Docker client
+    let mut scanner = Scanner::new_async(platform).await;
 
     // Handle commands
     match cli.command {

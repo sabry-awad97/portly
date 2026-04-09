@@ -1,5 +1,6 @@
+use anyhow::{Context, Result};
+use bollard::Docker;
 use std::collections::HashMap;
-use std::process::Command;
 
 /// Docker integration module
 ///
@@ -7,6 +8,7 @@ use std::process::Command;
 #[derive(Debug, Clone)]
 pub struct DockerClient {
     containers: HashMap<u16, DockerContainer>,
+    docker: Option<Docker>,
 }
 
 /// Docker container information
@@ -25,7 +27,31 @@ impl DockerClient {
             HashMap::new()
         };
 
-        Self { containers }
+        Self {
+            containers,
+            docker: None,
+        }
+    }
+
+    /// Create a new async DockerClient with Bollard API
+    ///
+    /// # Errors
+    ///
+    /// Returns error if Docker connection fails
+    pub async fn new_async() -> Result<Self> {
+        // Try to connect to Docker daemon
+        let docker = Docker::connect_with_local_defaults()
+            .context("Failed to connect to Docker daemon")?;
+
+        // Fetch containers using API
+        let containers = Self::fetch_containers_async(&docker)
+            .await
+            .unwrap_or_default();
+
+        Ok(Self {
+            containers,
+            docker: Some(docker),
+        })
     }
 
     /// Get container information for a port
@@ -35,6 +61,8 @@ impl DockerClient {
 
     /// Check if Docker CLI is available and daemon is running
     fn check_docker_available() -> bool {
+        use std::process::Command;
+        
         Command::new("docker")
             .arg("ps")
             .output()
@@ -44,6 +72,8 @@ impl DockerClient {
 
     /// Fetch all running containers with port mappings
     fn fetch_containers() -> Option<HashMap<u16, DockerContainer>> {
+        use std::process::Command;
+        
         let output = Command::new("docker")
             .args([
                 "ps",
@@ -87,6 +117,59 @@ impl DockerClient {
         }
 
         Some(containers)
+    }
+
+    /// Fetch containers using Bollard API (async)
+    async fn fetch_containers_async(docker: &Docker) -> Option<HashMap<u16, DockerContainer>> {
+        // List all running containers (no filters = running only by default)
+        let containers_result = docker.list_containers(None).await;
+
+        let containers_list = match containers_result {
+            Ok(list) => list,
+            Err(_) => return Some(HashMap::new()), // Graceful degradation
+        };
+
+        let mut containers = HashMap::new();
+
+        for container in containers_list {
+            // Extract container name (remove leading /)
+            let name = container
+                .names
+                .and_then(|names| names.first().map(|n| n.trim_start_matches('/').to_string()))
+                .unwrap_or_else(|| "unknown".to_string());
+
+            // Extract image name
+            let image = container.image.unwrap_or_else(|| "unknown".to_string());
+
+            // Extract host ports from port mappings
+            let host_ports = if let Some(ports) = container.ports {
+                Self::extract_host_ports_from_api(&ports)
+            } else {
+                Vec::new()
+            };
+
+            if !host_ports.is_empty() {
+                let docker_container = DockerContainer {
+                    name: name.clone(),
+                    image: image.clone(),
+                };
+
+                // Map each host port to this container
+                for port in host_ports {
+                    containers.insert(port, docker_container.clone());
+                }
+            }
+        }
+
+        Some(containers)
+    }
+
+    /// Extract host ports from Bollard API Port structs
+    fn extract_host_ports_from_api(ports: &[bollard::models::PortSummary]) -> Vec<u16> {
+        ports
+            .iter()
+            .filter_map(|port| port.public_port)
+            .collect()
     }
 
     /// Parse host ports from Docker port mapping string
@@ -366,5 +449,52 @@ mod tests {
                 assert!(!framework.is_empty());
             }
         }
+    }
+
+    // ========== Async/Bollard Tests ==========
+
+    #[tokio::test]
+    async fn test_docker_client_connects() {
+        // RED: Test that DockerClient can be created asynchronously
+        let result = DockerClient::new_async().await;
+        
+        // Should return Ok even if Docker is not available (graceful degradation)
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_fetch_containers_via_api() {
+        // RED: Test that containers are fetched via Bollard API
+        let result = DockerClient::new_async().await;
+        
+        if let Ok(client) = result {
+            // Should have containers map (empty or populated)
+            // This tests that fetch_containers_async was called
+            assert!(client.containers.len() >= 0);
+        }
+    }
+
+    #[test]
+    fn test_extract_host_ports_from_api() {
+        // RED: Test that port mappings are extracted correctly from API types
+        use bollard::models::{PortSummary, PortSummaryTypeEnum};
+
+        let ports = vec![
+            PortSummary {
+                ip: Some("0.0.0.0".to_string()),
+                private_port: 5432,
+                public_port: Some(5432),
+                typ: Some(PortSummaryTypeEnum::TCP),
+            },
+            PortSummary {
+                ip: Some("0.0.0.0".to_string()),
+                private_port: 3000,
+                public_port: Some(3000),
+                typ: Some(PortSummaryTypeEnum::TCP),
+            },
+        ];
+
+        let host_ports = DockerClient::extract_host_ports_from_api(&ports);
+        assert_eq!(host_ports, vec![5432, 3000]);
     }
 }

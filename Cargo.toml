@@ -31,6 +31,10 @@ thiserror = "2.0.18"
 sysinfo = "0.38.4"
 netstat2 = "0.11.2"
 
+# Docker API
+bollard = "0.20.2"
+tokio = { version = "1", features = ["full"] }
+
 # Utilities
 humantime = "2.3.0"
 byte-unit = "5.2.0"
