@@ -1,0 +1,9 @@
+---
+source: src/display.rs
+expression: results
+---
+0 seconds: 0m
+1 second: 0m
+59 seconds: 0m
+1 hour: 1h 0m
+23 hours: 23h 0m

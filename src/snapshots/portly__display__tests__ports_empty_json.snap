@@ -1,0 +1,5 @@
+---
+source: src/display.rs
+expression: json_output
+---
+[]

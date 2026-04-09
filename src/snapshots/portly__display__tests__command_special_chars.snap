@@ -1,0 +1,8 @@
+---
+source: src/display.rs
+expression: results
+---
+Quotes in command: app.js --env="production"
+Spaces in path: --path=/home/user/my project
+Double dash separator: run -- --arg1 --arg2
+NPM with args: npm

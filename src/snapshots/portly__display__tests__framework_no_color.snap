@@ -1,0 +1,12 @@
+---
+source: src/display.rs
+expression: results
+---
+Some("Next.js"): Next.js
+Some("Django"): Django
+Some("Rails"): Rails
+Some("Rust"): Rust
+Some("PostgreSQL"): PostgreSQL
+Some("Docker"): Docker
+Some("Unknown Framework"): Unknown Framework
+None: —

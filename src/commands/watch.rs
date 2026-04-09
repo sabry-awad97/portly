@@ -1,4 +1,4 @@
-use crate::{cli::Cli, config::Config, process, scanner::Scanner};
+use crate::{cli::Cli, config::Config, display::Display, scanner::Scanner};
 use anyhow::Context;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -12,6 +12,9 @@ pub fn handle_watch(
     cli: &Cli,
     _config: &Config,
 ) -> anyhow::Result<()> {
+    // Create Display instance
+    let display = Display::new(!cli.no_color, cli.json);
+
     // Set up Ctrl+C handler
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -58,14 +61,14 @@ pub fn handle_watch(
             if !previous_ports.contains(port)
                 && let Some(info) = current_ports.iter().find(|p| p.port == *port)
             {
-                display_watch_event_new(info, cli.no_color);
+                display.show_watch_event_new(info);
             }
         }
 
         // Detect closed ports
         for port in &previous_ports {
             if !current_set.contains(port) {
-                display_watch_event_closed(*port, cli.no_color);
+                display.show_watch_event_closed(*port);
             }
         }
 
@@ -74,45 +77,6 @@ pub fn handle_watch(
 
     println!("\n\nStopped watching.\n");
     Ok(())
-}
-
-fn display_watch_event_new(port_info: &process::PortInfo, no_color: bool) {
-    let timestamp = chrono::Local::now().format("%H:%M:%S");
-    let event_marker = if no_color {
-        "▲ NEW   "
-    } else {
-        use colored::Colorize;
-        &format!("{}", "▲ NEW   ".green())
-    };
-
-    let framework_str = port_info
-        .framework
-        .as_ref()
-        .map(|f| format!(" {}", f))
-        .unwrap_or_default();
-
-    let project_str = port_info
-        .project_name
-        .as_ref()
-        .map(|p| format!(" [{}]", p))
-        .unwrap_or_default();
-
-    println!(
-        "{} {} :{} ← {}{}{}",
-        timestamp, event_marker, port_info.port, port_info.process_name, project_str, framework_str
-    );
-}
-
-fn display_watch_event_closed(port: u16, no_color: bool) {
-    let timestamp = chrono::Local::now().format("%H:%M:%S");
-    let event_marker = if no_color {
-        "▼ CLOSED"
-    } else {
-        use colored::Colorize;
-        &format!("{}", "▼ CLOSED".red())
-    };
-
-    println!("{} {} :{}", timestamp, event_marker, port);
 }
 
 #[cfg(test)]

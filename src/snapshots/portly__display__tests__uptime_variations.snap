@@ -1,0 +1,10 @@
+---
+source: src/display.rs
+expression: results
+---
+5 minutes: 5m
+30 minutes: 30m
+2 hours: 2h 0m
+1 day: 1d 1h
+5 days: 5d 0h
+None: —

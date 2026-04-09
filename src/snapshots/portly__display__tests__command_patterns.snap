@@ -1,0 +1,13 @@
+---
+source: src/display.rs
+expression: results
+---
+Node.js with next dev: next dev
+Node.js with server.js: server.js --port 3000
+Python Django: runserver
+Python Flask: flask run
+Cargo run: run --bin server
+Cargo watch: watch -x run
+Docker compose: docker-compose up
+Empty command: myprocess
+Long command: proc

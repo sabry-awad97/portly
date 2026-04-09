@@ -1,0 +1,10 @@
+---
+source: src/display.rs
+expression: results
+---
+Short string: 'short'
+Exact length: 'exactly10c'
+Long string: 'this is...'
+Empty string: ''
+Single char: 'a'
+Unicode chars: 'unicode: 你...'

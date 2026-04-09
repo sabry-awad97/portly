@@ -1,0 +1,8 @@
+---
+source: src/display.rs
+expression: markers
+---
+New: ▲ NEW   
+Closed: ▼ CLOSED
+Success: ✓
+Error: ✗

@@ -1,0 +1,30 @@
+---
+source: src/display.rs
+expression: json_output
+---
+[
+  {
+    "port": 3000,
+    "pid": 1234,
+    "process_name": "node",
+    "status": "Healthy",
+    "framework": "Next.js",
+    "project_name": "my-app"
+  },
+  {
+    "port": 5000,
+    "pid": 5678,
+    "process_name": "python",
+    "status": "Orphaned",
+    "framework": "Django",
+    "project_name": "api-server"
+  },
+  {
+    "port": 8080,
+    "pid": 9999,
+    "process_name": "java",
+    "status": "Zombie",
+    "framework": null,
+    "project_name": null
+  }
+]

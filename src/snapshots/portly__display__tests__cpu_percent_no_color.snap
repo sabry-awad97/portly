@@ -1,0 +1,11 @@
+---
+source: src/display.rs
+expression: results
+---
+Very low: 0.5
+Low: 2.0
+Medium low: 5.0
+Medium: 10.0
+High threshold: 25.0
+High: 50.0
+Very high: 99.9
