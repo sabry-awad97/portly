@@ -1,5 +1,5 @@
-use anyhow::Context;
 use crate::{details, scanner::Scanner};
+use anyhow::Context;
 
 pub fn handle_details(
     scanner: &mut Scanner,

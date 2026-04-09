@@ -1,4 +1,9 @@
-use crate::{details, platform::get_platform, process, scanner::{self, Scanner}};
+use crate::{
+    details,
+    platform::get_platform,
+    process,
+    scanner::{self, Scanner},
+};
 use anyhow::Context;
 
 /// Process information for ps command
@@ -109,7 +114,9 @@ fn group_docker_processes(
     }
 
     // Find daemon (lowest PID)
-    let daemon = docker_procs.iter().min_by_key(|p| p.pid)
+    let daemon = docker_procs
+        .iter()
+        .min_by_key(|p| p.pid)
         .expect("docker_procs is non-empty (checked above)");
 
     // Sum resources

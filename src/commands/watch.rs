@@ -1,8 +1,8 @@
 use crate::{cli::Cli, config::Config, process, scanner::Scanner};
 use anyhow::Context;
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 

@@ -67,6 +67,14 @@ mod windows;
 #[cfg(target_os = "windows")]
 pub use windows::WindowsPlatform;
 
+// Mock platform for testing
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+#[allow(unused_imports)]
+pub use mock::MockPlatform;
+
 /// Get the platform implementation for the current OS
 pub fn get_platform() -> Box<dyn Platform> {
     #[cfg(target_os = "windows")]

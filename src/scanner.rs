@@ -258,6 +258,8 @@ fn extract_command_description(cmd_line: &str, process_name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::MockPlatform;
+    use crate::process::{ProcessInfo, ProcessStatus};
 
     #[test]
     fn test_extract_command_description_node() {
@@ -309,5 +311,205 @@ mod tests {
         assert!(!is_system_process("node.exe"));
         assert!(!is_system_process("python.exe"));
         assert!(!is_system_process("cargo.exe"));
+    }
+
+    // ===== MockPlatform Scanner Tests =====
+
+    #[test]
+    fn test_scanner_filters_system_processes() {
+        let mock = MockPlatform::new()
+            .with_port(3000, 1234)
+            .with_process(
+                1234,
+                ProcessInfo {
+                    pid: 1234,
+                    name: "node.exe".to_string(),
+                    command: "node server.js".to_string(),
+                    status: ProcessStatus::Healthy,
+                    memory_kb: 50000,
+                    cpu_percent: 5.0,
+                    start_time: None,
+                    working_dir: Some("C:\\projects\\my-app".to_string()),
+                },
+            )
+            .with_port(5000, 5678)
+            .with_process(
+                5678,
+                ProcessInfo {
+                    pid: 5678,
+                    name: "svchost.exe".to_string(),
+                    command: "C:\\Windows\\System32\\svchost.exe".to_string(),
+                    status: ProcessStatus::Healthy,
+                    memory_kb: 10000,
+                    cpu_percent: 1.0,
+                    start_time: None,
+                    working_dir: None,
+                },
+            );
+
+        let mut scanner = Scanner::new(Box::new(mock));
+        let ports = scanner.scan(false).unwrap();
+
+        // Should only include node.exe, not svchost.exe
+        assert_eq!(ports.len(), 1);
+        assert_eq!(ports[0].port, 3000);
+        assert_eq!(ports[0].process_name, "server.js");
+    }
+
+    #[test]
+    fn test_scanner_handles_process_exit() {
+        let mock = MockPlatform::new()
+            .with_port(3000, 1234)
+            .with_error_on_pid(1234);
+
+        let mut scanner = Scanner::new(Box::new(mock));
+        let ports = scanner.scan(false).unwrap();
+
+        // Should skip port with exited process
+        assert_eq!(ports.len(), 0);
+    }
+
+    #[test]
+    fn test_scanner_detects_zombie_processes() {
+        let mock = MockPlatform::new()
+            .with_port(3000, 1234)
+            .with_process(
+                1234,
+                ProcessInfo {
+                    pid: 1234,
+                    name: "node.exe".to_string(),
+                    command: "node server.js".to_string(),
+                    status: ProcessStatus::Zombie,
+                    memory_kb: 0,
+                    cpu_percent: 0.0,
+                    start_time: None,
+                    working_dir: None,
+                },
+            );
+
+        let mut scanner = Scanner::new(Box::new(mock));
+        let ports = scanner.scan(false).unwrap();
+
+        assert_eq!(ports.len(), 1);
+        assert_eq!(ports[0].status, ProcessStatus::Zombie);
+    }
+
+    #[test]
+    fn test_scanner_detects_orphaned_processes() {
+        let mock = MockPlatform::new()
+            .with_port(3000, 1234)
+            .with_process(
+                1234,
+                ProcessInfo {
+                    pid: 1234,
+                    name: "node.exe".to_string(),
+                    command: "node server.js".to_string(),
+                    status: ProcessStatus::Orphaned,
+                    memory_kb: 50000,
+                    cpu_percent: 5.0,
+                    start_time: None,
+                    working_dir: None,
+                },
+            );
+
+        let mut scanner = Scanner::new(Box::new(mock));
+        let ports = scanner.scan(false).unwrap();
+
+        assert_eq!(ports.len(), 1);
+        assert_eq!(ports[0].status, ProcessStatus::Orphaned);
+    }
+
+    #[test]
+    fn test_scanner_handles_empty_port_list() {
+        let mock = MockPlatform::new();
+
+        let mut scanner = Scanner::new(Box::new(mock));
+        let ports = scanner.scan(false).unwrap();
+
+        assert_eq!(ports.len(), 0);
+    }
+
+    #[test]
+    fn test_scanner_handles_multiple_ports_same_pid() {
+        let mock = MockPlatform::new()
+            .with_port(3000, 1234)
+            .with_port(3001, 1234)
+            .with_port(3002, 1234)
+            .with_process(
+                1234,
+                ProcessInfo {
+                    pid: 1234,
+                    name: "node.exe".to_string(),
+                    command: "node server.js".to_string(),
+                    status: ProcessStatus::Healthy,
+                    memory_kb: 50000,
+                    cpu_percent: 5.0,
+                    start_time: None,
+                    working_dir: Some("C:\\projects\\my-app".to_string()),
+                },
+            );
+
+        let mut scanner = Scanner::new(Box::new(mock));
+        let ports = scanner.scan(false).unwrap();
+
+        assert_eq!(ports.len(), 3);
+        assert_eq!(ports[0].port, 3000);
+        assert_eq!(ports[1].port, 3001);
+        assert_eq!(ports[2].port, 3002);
+        assert_eq!(ports[0].pid, 1234);
+        assert_eq!(ports[1].pid, 1234);
+        assert_eq!(ports[2].pid, 1234);
+    }
+
+    #[test]
+    fn test_scanner_show_all_includes_system_processes() {
+        let mock = MockPlatform::new()
+            .with_port(3000, 1234)
+            .with_process(
+                1234,
+                ProcessInfo {
+                    pid: 1234,
+                    name: "node.exe".to_string(),
+                    command: "node server.js".to_string(),
+                    status: ProcessStatus::Healthy,
+                    memory_kb: 50000,
+                    cpu_percent: 5.0,
+                    start_time: None,
+                    working_dir: None,
+                },
+            )
+            .with_port(5000, 5678)
+            .with_process(
+                5678,
+                ProcessInfo {
+                    pid: 5678,
+                    name: "svchost.exe".to_string(),
+                    command: "C:\\Windows\\System32\\svchost.exe".to_string(),
+                    status: ProcessStatus::Healthy,
+                    memory_kb: 10000,
+                    cpu_percent: 1.0,
+                    start_time: None,
+                    working_dir: None,
+                },
+            );
+
+        let mut scanner = Scanner::new(Box::new(mock));
+        let ports = scanner.scan(true).unwrap(); // show_all = true
+
+        // Should include both processes
+        assert_eq!(ports.len(), 2);
+    }
+
+    #[test]
+    fn test_scanner_handles_permission_denied() {
+        let mock = MockPlatform::new()
+            .with_port(3000, 1234)
+            .with_error_on_pid(1234);
+
+        let mut scanner = Scanner::new(Box::new(mock));
+
+        // scan() should handle error gracefully and skip the port
+        let ports = scanner.scan(false).unwrap();
+        assert_eq!(ports.len(), 0);
     }
 }

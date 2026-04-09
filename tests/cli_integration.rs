@@ -80,7 +80,7 @@ fn test_config_init_command() {
         .stdout(
             predicate::str::contains("config")
                 .or(predicate::str::contains("Created"))
-                .or(predicate::str::contains("exists"))
+                .or(predicate::str::contains("exists")),
         );
 }
 

@@ -83,25 +83,22 @@ impl Config {
     /// Returns error if config file exists but cannot be read or parsed
     #[must_use = "config should be used to configure the application"]
     pub fn load() -> Result<Self> {
-        let config_path = Self::config_path()
-            .context("Failed to determine config path")?;
-        
+        let config_path = Self::config_path().context("Failed to determine config path")?;
+
         if !config_path.exists() {
             return Ok(Self::default());
         }
-        
+
         Self::load_from_path(&config_path)
     }
-    
+
     /// Load configuration from specific path
     pub fn load_from_path(path: &PathBuf) -> Result<Self> {
-        let content = fs::read_to_string(path)
-            .context("Failed to read config file")?;
-        
-        toml::from_str(&content)
-            .context("Failed to parse config file")
+        let content = fs::read_to_string(path).context("Failed to read config file")?;
+
+        toml::from_str(&content).context("Failed to parse config file")
     }
-    
+
     /// Get the config file path.
     ///
     /// Returns the platform-specific config directory path.
@@ -111,12 +108,11 @@ impl Config {
     ///
     /// Returns error if the config directory cannot be determined
     pub fn config_path() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .context("Could not find config directory")?;
-        
+        let config_dir = dirs::config_dir().context("Could not find config directory")?;
+
         Ok(config_dir.join("portly").join("config.toml"))
     }
-    
+
     /// Create default config file at the specified path.
     ///
     /// Creates parent directories if they don't exist.
@@ -130,17 +126,15 @@ impl Config {
     /// Returns error if directories cannot be created or file cannot be written
     pub fn create_default(path: &PathBuf) -> Result<()> {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .context("Failed to create config directory")?;
+            fs::create_dir_all(parent).context("Failed to create config directory")?;
         }
-        
+
         let default_config = Self::default();
         let toml_string = toml::to_string_pretty(&default_config)
             .context("Failed to serialize default config")?;
-        
-        fs::write(path, toml_string)
-            .context("Failed to write config file")?;
-        
+
+        fs::write(path, toml_string).context("Failed to write config file")?;
+
         Ok(())
     }
 }
@@ -148,22 +142,32 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_default_config_has_expected_values() {
         // Arrange & Act
         let config = Config::default();
-        
+
         // Assert
         assert!(config.display.colors);
         assert!(!config.display.compact);
         assert!(config.filters.exclude_system);
         assert!(!config.defaults.show_all);
         assert!(!config.defaults.json_output);
-        assert!(config.filters.exclude_processes.contains(&"Spotify".to_string()));
-        assert!(config.filters.exclude_processes.contains(&"Chrome".to_string()));
+        assert!(
+            config
+                .filters
+                .exclude_processes
+                .contains(&"Spotify".to_string())
+        );
+        assert!(
+            config
+                .filters
+                .exclude_processes
+                .contains(&"Chrome".to_string())
+        );
     }
-    
+
     #[test]
     fn test_load_returns_default_when_file_missing() {
         // This test verifies behavior when config file doesn't exist
@@ -172,7 +176,7 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.filters.exclude_processes.len(), 7);
     }
-    
+
     #[test]
     fn test_parse_valid_toml_config() {
         // Arrange
@@ -189,25 +193,28 @@ exclude_processes = ["TestApp", "AnotherApp"]
 show_all = true
 json_output = true
 "#;
-        
+
         // Act
         let config: Config = toml::from_str(toml_content).unwrap();
-        
+
         // Assert
         assert!(!config.display.colors);
         assert!(config.display.compact);
         assert!(!config.filters.exclude_system);
-        assert_eq!(config.filters.exclude_processes, vec!["TestApp", "AnotherApp"]);
+        assert_eq!(
+            config.filters.exclude_processes,
+            vec!["TestApp", "AnotherApp"]
+        );
         assert!(config.defaults.show_all);
         assert!(config.defaults.json_output);
     }
-    
+
     #[test]
     fn test_load_from_path_with_valid_file() {
         // Arrange
         let temp_dir = std::env::temp_dir();
         let config_path = temp_dir.join("portly_test_config.toml");
-        
+
         let toml_content = r#"
 [display]
 colors = false
@@ -221,76 +228,81 @@ exclude_processes = ["TestApp"]
 show_all = true
 json_output = false
 "#;
-        
+
         fs::write(&config_path, toml_content).unwrap();
-        
+
         // Act
         let config = Config::load_from_path(&config_path).unwrap();
-        
+
         // Assert
         assert!(!config.display.colors);
         assert!(config.display.compact);
         assert_eq!(config.filters.exclude_processes, vec!["TestApp"]);
-        
+
         // Cleanup
         let _ = fs::remove_file(&config_path);
     }
-    
+
     #[test]
     fn test_load_from_path_with_invalid_toml() {
         // Arrange
         let temp_dir = std::env::temp_dir();
         let config_path = temp_dir.join("portly_test_invalid.toml");
-        
+
         let invalid_toml = r#"
 [display
 colors = false
 "#;
-        
+
         fs::write(&config_path, invalid_toml).unwrap();
-        
+
         // Act
         let result = Config::load_from_path(&config_path);
-        
+
         // Assert
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Failed to parse config file"));
-        
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to parse config file")
+        );
+
         // Cleanup
         let _ = fs::remove_file(&config_path);
     }
-    
+
     #[test]
     fn test_create_default_config_file() {
         // Arrange
         let temp_dir = std::env::temp_dir();
         let config_path = temp_dir.join("portly_test_default.toml");
-        
+
         // Cleanup any existing file
         let _ = fs::remove_file(&config_path);
-        
+
         // Act
         Config::create_default(&config_path).unwrap();
-        
+
         // Assert
         assert!(config_path.exists());
-        
+
         let loaded_config = Config::load_from_path(&config_path).unwrap();
         let default_config = Config::default();
         assert_eq!(loaded_config, default_config);
-        
+
         // Cleanup
         let _ = fs::remove_file(&config_path);
     }
-    
+
     #[test]
     fn test_serialize_config_to_toml() {
         // Arrange
         let config = Config::default();
-        
+
         // Act
         let toml_string = toml::to_string_pretty(&config).unwrap();
-        
+
         // Assert
         assert!(toml_string.contains("[display]"));
         assert!(toml_string.contains("colors = true"));
