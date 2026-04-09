@@ -373,10 +373,16 @@ mod tests {
 
     #[test]
     fn test_colorize_with_colors() {
+        // Force enable colors for this test
+        colored::control::set_override(true);
+        
         let display = Display::new(true, false);
         let result = display.colorize("test", Color::Green);
         // Should contain ANSI color codes
         assert!(result.contains("\x1b["));
+        
+        // Reset color override
+        colored::control::unset_override();
     }
 
     #[test]
@@ -388,10 +394,16 @@ mod tests {
 
     #[test]
     fn test_new_marker_with_colors() {
+        // Force enable colors for this test
+        colored::control::set_override(true);
+        
         let display = Display::new(true, false);
         let marker = display.new_marker();
         assert!(marker.contains("▲ NEW"));
         assert!(marker.contains("\x1b[")); // ANSI codes
+        
+        // Reset color override
+        colored::control::unset_override();
     }
 
     #[test]
@@ -402,10 +414,16 @@ mod tests {
 
     #[test]
     fn test_closed_marker_with_colors() {
+        // Force enable colors for this test
+        colored::control::set_override(true);
+        
         let display = Display::new(true, false);
         let marker = display.closed_marker();
         assert!(marker.contains("▼ CLOSED"));
         assert!(marker.contains("\x1b["));
+        
+        // Reset color override
+        colored::control::unset_override();
     }
 
     #[test]
@@ -416,10 +434,16 @@ mod tests {
 
     #[test]
     fn test_success_marker_with_colors() {
+        // Force enable colors for this test
+        colored::control::set_override(true);
+        
         let display = Display::new(true, false);
         let marker = display.success_marker();
         assert!(marker.contains("✓"));
         assert!(marker.contains("\x1b["));
+        
+        // Reset color override
+        colored::control::unset_override();
     }
 
     #[test]
@@ -430,10 +454,16 @@ mod tests {
 
     #[test]
     fn test_error_marker_with_colors() {
+        // Force enable colors for this test
+        colored::control::set_override(true);
+        
         let display = Display::new(true, false);
         let marker = display.error_marker();
         assert!(marker.contains("✗"));
         assert!(marker.contains("\x1b["));
+        
+        // Reset color override
+        colored::control::unset_override();
     }
 
     #[test]
@@ -505,6 +535,9 @@ mod tests {
 
     #[test]
     fn test_format_cpu_percent_with_colors() {
+        // Force enable colors for this test
+        colored::control::set_override(true);
+        
         let display = Display::new(true, false);
         let high = display.format_cpu_percent(30.0, "30.0");
         let medium = display.format_cpu_percent(10.0, "10.0");
@@ -514,6 +547,9 @@ mod tests {
         assert!(high.contains("\x1b[")); // red
         assert!(medium.contains("\x1b[")); // yellow
         assert!(low.contains("\x1b[")); // green
+        
+        // Reset color override
+        colored::control::unset_override();
     }
 
     #[test]
