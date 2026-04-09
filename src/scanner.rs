@@ -28,11 +28,24 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    /// Create a new scanner with the given platform implementation.
+    /// Create a new scanner with the given platform implementation (deprecated)
+    ///
+    /// # Deprecated
+    ///
+    /// Use `new_async()` instead. This method uses synchronous Docker client
+    /// which is slower and less reliable than the async Bollard API.
+    ///
+    /// This method will be removed in v0.2.0.
     ///
     /// # Arguments
     ///
     /// * `platform` - Platform-specific implementation for port scanning
+    #[deprecated(
+        since = "0.1.1",
+        note = "Use `new_async()` instead for better performance"
+    )]
+    #[allow(deprecated)]
+    #[allow(dead_code)] // Kept for backward compatibility, will be removed in v0.2.0
     pub fn new(platform: Box<dyn Platform>) -> Self {
         Self {
             platform,
@@ -52,8 +65,11 @@ impl Scanner {
     /// Returns error if Docker connection fails (gracefully falls back to empty client)
     pub async fn new_async(platform: Box<dyn Platform>) -> Self {
         // Try to create async Docker client, fallback to sync if it fails
-        let docker_client = DockerClient::new_async().await.unwrap_or_else(|_| DockerClient::new());
-        
+        #[allow(deprecated)]
+        let docker_client = DockerClient::new_async()
+            .await
+            .unwrap_or_else(|_| DockerClient::new());
+
         Self {
             platform,
             framework_detector: FrameworkDetector::new(),
@@ -284,6 +300,7 @@ fn extract_command_description(cmd_line: &str, process_name: &str) -> String {
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // Allow deprecated methods in tests for backward compatibility testing
 mod tests {
     use super::*;
     use crate::platform::MockPlatform;

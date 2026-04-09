@@ -8,6 +8,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct DockerClient {
     containers: HashMap<u16, DockerContainer>,
+    #[allow(dead_code)] // Used in async path, kept for future API extensions
     docker: Option<Docker>,
 }
 
@@ -19,6 +20,19 @@ pub struct DockerContainer {
 }
 
 impl DockerClient {
+    /// Create a new DockerClient (synchronous, deprecated)
+    ///
+    /// # Deprecated
+    ///
+    /// Use `new_async()` instead. This method uses CLI-based Docker integration
+    /// which is slower and less reliable than the async Bollard API.
+    ///
+    /// This method will be removed in v0.2.0.
+    #[deprecated(
+        since = "0.1.1",
+        note = "Use `new_async()` instead for better performance and reliability"
+    )]
+    #[allow(deprecated)]
     pub fn new() -> Self {
         let available = Self::check_docker_available();
         let containers = if available {
@@ -40,8 +54,8 @@ impl DockerClient {
     /// Returns error if Docker connection fails
     pub async fn new_async() -> Result<Self> {
         // Try to connect to Docker daemon
-        let docker = Docker::connect_with_local_defaults()
-            .context("Failed to connect to Docker daemon")?;
+        let docker =
+            Docker::connect_with_local_defaults().context("Failed to connect to Docker daemon")?;
 
         // Fetch containers using API
         let containers = Self::fetch_containers_async(&docker)
@@ -59,10 +73,20 @@ impl DockerClient {
         self.containers.get(&port)
     }
 
-    /// Check if Docker CLI is available and daemon is running
+    /// Check if Docker CLI is available and daemon is running (deprecated)
+    ///
+    /// # Deprecated
+    ///
+    /// This method is only used by the deprecated `new()` constructor.
+    /// The async path uses `Docker::connect_with_local_defaults()` which handles
+    /// availability checking internally.
+    #[deprecated(
+        since = "0.1.1",
+        note = "Internal method for deprecated sync constructor"
+    )]
     fn check_docker_available() -> bool {
         use std::process::Command;
-        
+
         Command::new("docker")
             .arg("ps")
             .output()
@@ -70,10 +94,17 @@ impl DockerClient {
             .unwrap_or(false)
     }
 
-    /// Fetch all running containers with port mappings
+    /// Fetch all running containers with port mappings (deprecated)
+    ///
+    /// # Deprecated
+    ///
+    /// This method uses CLI-based Docker integration. Use `fetch_containers_async()`
+    /// instead for better performance and reliability.
+    #[deprecated(since = "0.1.1", note = "Use `fetch_containers_async()` instead")]
+    #[allow(deprecated)]
     fn fetch_containers() -> Option<HashMap<u16, DockerContainer>> {
         use std::process::Command;
-        
+
         let output = Command::new("docker")
             .args([
                 "ps",
@@ -166,17 +197,21 @@ impl DockerClient {
 
     /// Extract host ports from Bollard API Port structs
     fn extract_host_ports_from_api(ports: &[bollard::models::PortSummary]) -> Vec<u16> {
-        ports
-            .iter()
-            .filter_map(|port| port.public_port)
-            .collect()
+        ports.iter().filter_map(|port| port.public_port).collect()
     }
 
-    /// Parse host ports from Docker port mapping string
+    /// Parse host ports from Docker port mapping string (deprecated)
+    ///
+    /// # Deprecated
+    ///
+    /// This method parses CLI output strings. Use `extract_host_ports_from_api()`
+    /// instead for type-safe port extraction from Bollard API types.
+    ///
     /// Examples:
     /// - "0.0.0.0:5432->5432/tcp" → \[5432\]
     /// - "0.0.0.0:3000->3000/tcp, 0.0.0.0:3001->3001/tcp" → \[3000, 3001\]
     /// - ":::5432->5432/tcp" → \[5432\]
+    #[deprecated(since = "0.1.1", note = "Use `extract_host_ports_from_api()` instead")]
     fn parse_host_ports(ports_str: &str) -> Vec<u16> {
         let mut ports = Vec::new();
 
@@ -273,12 +308,19 @@ impl DockerClient {
 }
 
 impl Default for DockerClient {
+    /// Default implementation (deprecated)
+    ///
+    /// # Deprecated
+    ///
+    /// Use `new_async()` instead. This uses the deprecated `new()` method.
+    #[allow(deprecated)]
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[cfg(test)]
+#[allow(deprecated)] // Allow deprecated methods in tests for backward compatibility testing
 mod tests {
     use super::*;
     use proptest::prelude::*;
@@ -457,7 +499,7 @@ mod tests {
     async fn test_docker_client_connects() {
         // RED: Test that DockerClient can be created asynchronously
         let result = DockerClient::new_async().await;
-        
+
         // Should return Ok even if Docker is not available (graceful degradation)
         assert!(result.is_ok());
     }
@@ -466,11 +508,15 @@ mod tests {
     async fn test_fetch_containers_via_api() {
         // RED: Test that containers are fetched via Bollard API
         let result = DockerClient::new_async().await;
-        
+
+        // Should successfully create client (even if Docker is unavailable)
+        assert!(result.is_ok());
+
         if let Ok(client) = result {
             // Should have containers map (empty or populated)
             // This tests that fetch_containers_async was called
-            assert!(client.containers.len() >= 0);
+            // Length is always >= 0 for HashMap, so just verify it exists
+            let _ = client.containers.len();
         }
     }
 

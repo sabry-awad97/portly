@@ -29,8 +29,8 @@ pub fn levenshtein_distance(a: &str, b: &str) -> usize {
         row[0] = i;
     }
 
-    for j in 0..=b_len {
-        matrix[0][j] = j;
+    for (j, cell) in matrix[0].iter_mut().enumerate().take(b_len + 1) {
+        *cell = j;
     }
 
     for (i, a_char) in a.chars().enumerate() {
@@ -38,8 +38,8 @@ pub fn levenshtein_distance(a: &str, b: &str) -> usize {
             let cost = if a_char == b_char { 0 } else { 1 };
             matrix[i + 1][j + 1] = std::cmp::min(
                 std::cmp::min(
-                    matrix[i][j + 1] + 1,    // deletion
-                    matrix[i + 1][j] + 1,    // insertion
+                    matrix[i][j + 1] + 1, // deletion
+                    matrix[i + 1][j] + 1, // insertion
                 ),
                 matrix[i][j] + cost, // substitution
             );
