@@ -142,6 +142,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
     fn test_default_config_has_expected_values() {
@@ -309,5 +310,133 @@ colors = false
         assert!(toml_string.contains("[filters]"));
         assert!(toml_string.contains("exclude_system = true"));
         assert!(toml_string.contains("Spotify"));
+    }
+
+    // ========== Property-Based Tests ==========
+
+    // Implement Arbitrary for Config structs
+    impl Arbitrary for DisplayConfig {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+            (any::<bool>(), any::<bool>())
+                .prop_map(|(colors, compact)| DisplayConfig { colors, compact })
+                .boxed()
+        }
+    }
+
+    impl Arbitrary for FilterConfig {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+            (
+                any::<bool>(),
+                prop::collection::vec("[a-zA-Z0-9_-]{1,20}", 0..10),
+            )
+                .prop_map(|(exclude_system, exclude_processes)| FilterConfig {
+                    exclude_system,
+                    exclude_processes,
+                })
+                .boxed()
+        }
+    }
+
+    impl Arbitrary for DefaultsConfig {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+            (any::<bool>(), any::<bool>())
+                .prop_map(|(show_all, json_output)| DefaultsConfig {
+                    show_all,
+                    json_output,
+                })
+                .boxed()
+        }
+    }
+
+    impl Arbitrary for Config {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+            (
+                any::<DisplayConfig>(),
+                any::<FilterConfig>(),
+                any::<DefaultsConfig>(),
+            )
+                .prop_map(|(display, filters, defaults)| Config {
+                    display,
+                    filters,
+                    defaults,
+                })
+                .boxed()
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn prop_config_round_trip(config in any::<Config>()) {
+            // Property: Serialize then deserialize should equal original
+            let toml = toml::to_string(&config).unwrap();
+            let deserialized: Config = toml::from_str(&toml).unwrap();
+
+            assert_eq!(config, deserialized);
+        }
+
+        #[test]
+        fn prop_config_serialization_no_panic(config in any::<Config>()) {
+            // Property: Serialization should never panic
+            let result = toml::to_string(&config);
+
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn prop_config_deserialization_valid_toml(config in any::<Config>()) {
+            // Property: Serialized config should be valid TOML
+            let toml = toml::to_string(&config).unwrap();
+            let result: Result<Config, _> = toml::from_str(&toml);
+
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn prop_config_pretty_serialization(config in any::<Config>()) {
+            // Property: Pretty serialization should also round-trip
+            let toml = toml::to_string_pretty(&config).unwrap();
+            let deserialized: Config = toml::from_str(&toml).unwrap();
+
+            assert_eq!(config, deserialized);
+        }
+
+        #[test]
+        fn prop_display_config_round_trip(display in any::<DisplayConfig>()) {
+            // Property: DisplayConfig should round-trip
+            let toml = toml::to_string(&display).unwrap();
+            let deserialized: DisplayConfig = toml::from_str(&toml).unwrap();
+
+            assert_eq!(display, deserialized);
+        }
+
+        #[test]
+        fn prop_filter_config_round_trip(filters in any::<FilterConfig>()) {
+            // Property: FilterConfig should round-trip
+            let toml = toml::to_string(&filters).unwrap();
+            let deserialized: FilterConfig = toml::from_str(&toml).unwrap();
+
+            assert_eq!(filters, deserialized);
+        }
+
+        #[test]
+        fn prop_defaults_config_round_trip(defaults in any::<DefaultsConfig>()) {
+            // Property: DefaultsConfig should round-trip
+            let toml = toml::to_string(&defaults).unwrap();
+            let deserialized: DefaultsConfig = toml::from_str(&toml).unwrap();
+
+            assert_eq!(defaults, deserialized);
+        }
     }
 }

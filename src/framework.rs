@@ -289,6 +289,7 @@ impl Default for FrameworkDetector {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
     fn test_detect_from_command_nextjs() {
@@ -357,5 +358,90 @@ mod tests {
     fn test_detect_from_command_none() {
         let detector = FrameworkDetector::new();
         assert_eq!(detector.detect_from_command("unknown command"), None);
+    }
+
+    // ========== Property-Based Tests ==========
+
+    proptest! {
+        #[test]
+        fn prop_framework_detection_no_panic(command in ".*") {
+            // Property: Detection should never panic
+            let mut detector = FrameworkDetector::new();
+            let result = detector.detect(&command, None);
+
+            // Should return Option<String> (possibly None)
+            if let Some(framework) = result {
+                assert!(!framework.is_empty());
+            }
+        }
+
+        #[test]
+        fn prop_framework_detection_consistency(command in ".*") {
+            // Property: Same command should return same result
+            let mut detector1 = FrameworkDetector::new();
+            let mut detector2 = FrameworkDetector::new();
+
+            let result1 = detector1.detect(&command, None);
+            let result2 = detector2.detect(&command, None);
+
+            assert_eq!(result1, result2);
+        }
+
+        #[test]
+        fn prop_framework_detection_with_working_dir(
+            command in ".*",
+            working_dir in ".*"
+        ) {
+            // Property: Detection with working dir should never panic
+            let mut detector = FrameworkDetector::new();
+            let result = detector.detect(&command, Some(&working_dir));
+
+            // Should return Option<String>
+            if let Some(framework) = result {
+                assert!(!framework.is_empty());
+            }
+        }
+
+        #[test]
+        fn prop_detect_from_command_no_panic(command in ".*") {
+            // Property: Command detection should never panic
+            let detector = FrameworkDetector::new();
+            let result = detector.detect_from_command(&command);
+
+            // Should return Option<String>
+            if let Some(framework) = result {
+                assert!(!framework.is_empty());
+            }
+        }
+
+        #[test]
+        fn prop_detect_docker_framework_no_panic(command in ".*") {
+            // Property: Docker framework detection should never panic
+            let detector = FrameworkDetector::new();
+            let result = detector.detect_docker_framework(&command);
+
+            // Should return Option<String>
+            if let Some(framework) = result {
+                assert!(!framework.is_empty());
+            }
+        }
+
+        #[test]
+        fn prop_cache_consistency(
+            command in ".*",
+            working_dir in "[a-zA-Z0-9_/\\\\.-]{1,50}"
+        ) {
+            // Property: Cache should return consistent results
+            let mut detector = FrameworkDetector::new();
+
+            // First call (populates cache)
+            let result1 = detector.detect(&command, Some(&working_dir));
+
+            // Second call (uses cache)
+            let result2 = detector.detect(&command, Some(&working_dir));
+
+            // Should be identical
+            assert_eq!(result1, result2);
+        }
     }
 }

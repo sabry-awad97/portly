@@ -172,8 +172,12 @@ impl Display {
 
         println!(
             "{} {} :{} ← {}{}{}",
-            timestamp, event_marker, port_info.port,
-            port_info.process_name, project_str, framework_str
+            timestamp,
+            event_marker,
+            port_info.port,
+            port_info.process_name,
+            project_str,
+            framework_str
         );
     }
 
@@ -505,7 +509,7 @@ mod tests {
         let high = display.format_cpu_percent(30.0, "30.0");
         let medium = display.format_cpu_percent(10.0, "10.0");
         let low = display.format_cpu_percent(2.0, "2.0");
-        
+
         // Should contain ANSI color codes
         assert!(high.contains("\x1b[")); // red
         assert!(medium.contains("\x1b[")); // yellow
@@ -516,7 +520,7 @@ mod tests {
     fn test_show_ps_table_empty() {
         let display = Display::new(false, false);
         let processes: Vec<crate::commands::ps::PsProcess> = vec![];
-        
+
         // Should print "No processes found."
         display.show_ps_table(&processes);
     }
@@ -633,14 +637,22 @@ mod tests {
 
         let test_cases = vec![
             ("node /path/to/next dev", "node", "Node.js with next dev"),
-            ("node server.js --port 3000", "node", "Node.js with server.js"),
+            (
+                "node server.js --port 3000",
+                "node",
+                "Node.js with server.js",
+            ),
             ("python manage.py runserver", "python", "Python Django"),
             ("python -m flask run", "python", "Python Flask"),
             ("cargo run --bin server", "cargo", "Cargo run"),
             ("cargo watch -x run", "cargo", "Cargo watch"),
             ("docker-compose up", "docker-compose", "Docker compose"),
             ("", "myprocess", "Empty command"),
-            ("very-long-command-that-should-be-truncated-because-it-exceeds-limit", "proc", "Long command"),
+            (
+                "very-long-command-that-should-be-truncated-because-it-exceeds-limit",
+                "proc",
+                "Long command",
+            ),
         ];
 
         let mut results = String::new();
@@ -674,7 +686,11 @@ mod tests {
         let test_cases = vec![
             ("short", 10, "Short string"),
             ("exactly10c", 10, "Exact length"),
-            ("this is a very long string that needs truncation", 10, "Long string"),
+            (
+                "this is a very long string that needs truncation",
+                10,
+                "Long string",
+            ),
             ("", 10, "Empty string"),
             ("a", 10, "Single char"),
             ("unicode: 你好世界", 15, "Unicode chars"),
@@ -798,9 +814,21 @@ mod tests {
         let display = Display::new(false, false);
 
         let test_cases = vec![
-            ("node app.js --env=\"production\"", "node", "Quotes in command"),
-            ("python script.py --path=/home/user/my project", "python", "Spaces in path"),
-            ("cargo run -- --arg1 --arg2", "cargo", "Double dash separator"),
+            (
+                "node app.js --env=\"production\"",
+                "node",
+                "Quotes in command",
+            ),
+            (
+                "python script.py --path=/home/user/my project",
+                "python",
+                "Spaces in path",
+            ),
+            (
+                "cargo run -- --arg1 --arg2",
+                "cargo",
+                "Double dash separator",
+            ),
             ("npm run dev -- --port=3000", "npm", "NPM with args"),
         ];
 

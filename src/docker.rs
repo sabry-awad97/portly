@@ -198,6 +198,7 @@ impl Default for DockerClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
     fn test_parse_host_ports_single() {
@@ -286,5 +287,84 @@ mod tests {
             DockerClient::_parse_docker_uptime("Up 45 seconds"),
             Some("0m".to_string())
         );
+    }
+
+    // ========== Property-Based Tests ==========
+
+    proptest! {
+        #[test]
+        fn prop_parse_host_ports_no_panic(input in ".*") {
+            // Property: Parser should never panic with any input
+            let result = DockerClient::parse_host_ports(&input);
+
+            // Should return Vec<u16> (possibly empty)
+            // All returned ports should be valid (> 0)
+            assert!(result.is_empty() || result.iter().all(|&p| p > 0));
+        }
+
+        #[test]
+        fn prop_parse_host_ports_valid_ipv4(
+            port in 1u16..=65535,
+            container_port in 1u16..=65535
+        ) {
+            // Property: Valid IPv4 format should parse correctly
+            let input = format!("0.0.0.0:{}->{}/ tcp", port, container_port);
+            let result = DockerClient::parse_host_ports(&input);
+
+            assert_eq!(result, vec![port]);
+        }
+
+        #[test]
+        fn prop_parse_host_ports_valid_ipv6(
+            port in 1u16..=65535,
+            container_port in 1u16..=65535
+        ) {
+            // Property: Valid IPv6 format should parse correctly
+            let input = format!(":::{}->{}/ tcp", port, container_port);
+            let result = DockerClient::parse_host_ports(&input);
+
+            assert_eq!(result, vec![port]);
+        }
+
+        #[test]
+        fn prop_parse_host_ports_multiple(
+            port1 in 1u16..=65535,
+            port2 in 1u16..=65535,
+            container_port1 in 1u16..=65535,
+            container_port2 in 1u16..=65535
+        ) {
+            // Property: Multiple ports should parse correctly
+            let input = format!(
+                "0.0.0.0:{}->{}/ tcp, 0.0.0.0:{}->{}/ tcp",
+                port1, container_port1, port2, container_port2
+            );
+            let result = DockerClient::parse_host_ports(&input);
+
+            assert_eq!(result, vec![port1, port2]);
+        }
+
+        #[test]
+        fn prop_parse_host_ports_empty_returns_empty(input in ".*") {
+            // Property: If no valid ports found, return empty vec
+            let result = DockerClient::parse_host_ports(&input);
+
+            // Should never panic, always return a vec
+            // Number of ports should not exceed number of "->" patterns
+            assert!(result.len() <= input.matches("->").count());
+        }
+
+        #[test]
+        fn prop_detect_framework_no_panic(image in ".*") {
+            // Property: Framework detection should never panic
+            let result = DockerClient::detect_framework_from_image(&image);
+
+            // Should always return Some (at least "Docker")
+            assert!(result.is_some());
+
+            // Framework name should not be empty
+            if let Some(framework) = result {
+                assert!(!framework.is_empty());
+            }
+        }
     }
 }

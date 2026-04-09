@@ -371,21 +371,19 @@ mod tests {
 
     #[test]
     fn test_scanner_detects_zombie_processes() {
-        let mock = MockPlatform::new()
-            .with_port(3000, 1234)
-            .with_process(
-                1234,
-                ProcessInfo {
-                    pid: 1234,
-                    name: "node.exe".to_string(),
-                    command: "node server.js".to_string(),
-                    status: ProcessStatus::Zombie,
-                    memory_kb: 0,
-                    cpu_percent: 0.0,
-                    start_time: None,
-                    working_dir: None,
-                },
-            );
+        let mock = MockPlatform::new().with_port(3000, 1234).with_process(
+            1234,
+            ProcessInfo {
+                pid: 1234,
+                name: "node.exe".to_string(),
+                command: "node server.js".to_string(),
+                status: ProcessStatus::Zombie,
+                memory_kb: 0,
+                cpu_percent: 0.0,
+                start_time: None,
+                working_dir: None,
+            },
+        );
 
         let mut scanner = Scanner::new(Box::new(mock));
         let ports = scanner.scan(false).unwrap();
@@ -396,21 +394,19 @@ mod tests {
 
     #[test]
     fn test_scanner_detects_orphaned_processes() {
-        let mock = MockPlatform::new()
-            .with_port(3000, 1234)
-            .with_process(
-                1234,
-                ProcessInfo {
-                    pid: 1234,
-                    name: "node.exe".to_string(),
-                    command: "node server.js".to_string(),
-                    status: ProcessStatus::Orphaned,
-                    memory_kb: 50000,
-                    cpu_percent: 5.0,
-                    start_time: None,
-                    working_dir: None,
-                },
-            );
+        let mock = MockPlatform::new().with_port(3000, 1234).with_process(
+            1234,
+            ProcessInfo {
+                pid: 1234,
+                name: "node.exe".to_string(),
+                command: "node server.js".to_string(),
+                status: ProcessStatus::Orphaned,
+                memory_kb: 50000,
+                cpu_percent: 5.0,
+                start_time: None,
+                working_dir: None,
+            },
+        );
 
         let mut scanner = Scanner::new(Box::new(mock));
         let ports = scanner.scan(false).unwrap();
@@ -511,5 +507,186 @@ mod tests {
         // scan() should handle error gracefully and skip the port
         let ports = scanner.scan(false).unwrap();
         assert_eq!(ports.len(), 0);
+    }
+
+    // ========== Property-Based Tests ==========
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn prop_scanner_handles_any_port(port in 1u16..=65535, pid in 1u32..=100000) {
+            // Property: Scanner should handle any valid port number
+            let mock = MockPlatform::new()
+                .with_port(port, pid)
+                .with_process(
+                    pid,
+                    ProcessInfo {
+                        pid,
+                        name: "test.exe".to_string(),
+                        command: "test command".to_string(),
+                        status: ProcessStatus::Healthy,
+                        memory_kb: 50000,
+                        cpu_percent: 5.0,
+                        start_time: None,
+                        working_dir: None,
+                    },
+                );
+
+            let mut scanner = Scanner::new(Box::new(mock));
+            let result = scanner.scan(false);
+
+            // Should not panic and return valid result
+            assert!(result.is_ok());
+            let ports = result.unwrap();
+            if !ports.is_empty() {
+                assert_eq!(ports[0].port, port);
+                assert_eq!(ports[0].pid, pid);
+            }
+        }
+
+        #[test]
+        fn prop_scanner_handles_any_pid(pid in 1u32..=100000) {
+            // Property: Scanner should handle any PID
+            let mock = MockPlatform::new()
+                .with_port(3000, pid)
+                .with_process(
+                    pid,
+                    ProcessInfo {
+                        pid,
+                        name: "test.exe".to_string(),
+                        command: "test command".to_string(),
+                        status: ProcessStatus::Healthy,
+                        memory_kb: 50000,
+                        cpu_percent: 5.0,
+                        start_time: None,
+                        working_dir: None,
+                    },
+                );
+
+            let mut scanner = Scanner::new(Box::new(mock));
+            let result = scanner.scan(false);
+
+            assert!(result.is_ok());
+        }
+
+        #[test]
+        fn prop_get_port_details_any_port(port in 1u16..=65535, pid in 1u32..=100000) {
+            // Property: get_port_details should handle any port
+            let mock = MockPlatform::new()
+                .with_port(port, pid)
+                .with_process(
+                    pid,
+                    ProcessInfo {
+                        pid,
+                        name: "test.exe".to_string(),
+                        command: "test command".to_string(),
+                        status: ProcessStatus::Healthy,
+                        memory_kb: 50000,
+                        cpu_percent: 5.0,
+                        start_time: None,
+                        working_dir: None,
+                    },
+                );
+
+            let mut scanner = Scanner::new(Box::new(mock));
+            let result = scanner.get_port_details(port);
+
+            // Should either find the port or return PortNotFound error
+            match result {
+                Ok(port_info) => {
+                    assert_eq!(port_info.port, port);
+                    assert_eq!(port_info.pid, pid);
+                }
+                Err(_) => {
+                    // Port not found is acceptable (filtered out)
+                }
+            }
+        }
+
+        #[test]
+        fn prop_scanner_sorts_ports(
+            port1 in 1u16..=30000,
+            port2 in 30001u16..=60000,
+            port3 in 60001u16..=65535
+        ) {
+            // Property: Scanner should always sort ports by port number
+            let mock = MockPlatform::new()
+                .with_port(port2, 2000) // Add middle port first
+                .with_port(port3, 3000) // Add highest port second
+                .with_port(port1, 1000) // Add lowest port last
+                .with_process(
+                    1000,
+                    ProcessInfo {
+                        pid: 1000,
+                        name: "test1.exe".to_string(),
+                        command: "test1".to_string(),
+                        status: ProcessStatus::Healthy,
+                        memory_kb: 50000,
+                        cpu_percent: 5.0,
+                        start_time: None,
+                        working_dir: None,
+                    },
+                )
+                .with_process(
+                    2000,
+                    ProcessInfo {
+                        pid: 2000,
+                        name: "test2.exe".to_string(),
+                        command: "test2".to_string(),
+                        status: ProcessStatus::Healthy,
+                        memory_kb: 50000,
+                        cpu_percent: 5.0,
+                        start_time: None,
+                        working_dir: None,
+                    },
+                )
+                .with_process(
+                    3000,
+                    ProcessInfo {
+                        pid: 3000,
+                        name: "test3.exe".to_string(),
+                        command: "test3".to_string(),
+                        status: ProcessStatus::Healthy,
+                        memory_kb: 50000,
+                        cpu_percent: 5.0,
+                        start_time: None,
+                        working_dir: None,
+                    },
+                );
+
+            let mut scanner = Scanner::new(Box::new(mock));
+            let ports = scanner.scan(false).unwrap();
+
+            // Should be sorted: port1 < port2 < port3
+            if ports.len() == 3 {
+                assert!(ports[0].port < ports[1].port);
+                assert!(ports[1].port < ports[2].port);
+                assert_eq!(ports[0].port, port1);
+                assert_eq!(ports[1].port, port2);
+                assert_eq!(ports[2].port, port3);
+            }
+        }
+
+        #[test]
+        fn prop_is_system_process_consistency(name in "[a-zA-Z0-9_.-]{1,50}\\.exe") {
+            // Property: is_system_process should be deterministic
+            let result1 = is_system_process(&name);
+            let result2 = is_system_process(&name);
+
+            assert_eq!(result1, result2);
+        }
+
+        #[test]
+        fn prop_extract_command_description_no_panic(
+            command in ".*",
+            process_name in "[a-zA-Z0-9_.-]{1,20}"
+        ) {
+            // Property: extract_command_description should never panic
+            let result = extract_command_description(&command, &process_name);
+
+            // Should always return a non-empty string
+            assert!(!result.is_empty());
+        }
     }
 }

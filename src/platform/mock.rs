@@ -321,6 +321,72 @@ impl MockPlatform {
     pub fn get_kill_calls(&self) -> Vec<(u32, bool)> {
         self.kill_calls.lock().unwrap().clone()
     }
+
+    /// Builder method: Create a chain of processes (parent -> child -> grandchild -> ...)
+    ///
+    /// Creates a linear process tree with the specified depth.
+    /// Each process in the chain has the next one as its parent.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use portly::platform::MockPlatform;
+    ///
+    /// // Create a chain: 1000 -> 1001 -> 1002 -> 1003
+    /// let mock = MockPlatform::new().with_process_chain(1000, 4);
+    /// ```
+    pub fn with_process_chain(mut self, root_pid: u32, depth: usize) -> Self {
+        if depth == 0 {
+            return self;
+        }
+
+        let mut tree = Vec::new();
+        let mut current_pid = root_pid;
+
+        for i in 0..depth {
+            let ppid = if i == 0 { 0 } else { current_pid - 1 };
+            tree.push(ProcessNode {
+                pid: current_pid,
+                ppid,
+                name: format!("process_{}.exe", current_pid),
+            });
+            current_pid += 1;
+        }
+
+        self.process_trees.insert(root_pid, tree);
+        self
+    }
+
+    /// Builder method: Create a process tree with a cycle (for testing cycle detection)
+    ///
+    /// Creates a process tree where a child process has the root as its parent,
+    /// creating a cycle. This is useful for testing cycle detection logic.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use portly::platform::MockPlatform;
+    ///
+    /// // Create a cycle: 1000 -> 1001 -> 1000 (cycle!)
+    /// let mock = MockPlatform::new().with_process_tree_cycle(1000);
+    /// ```
+    pub fn with_process_tree_cycle(mut self, root_pid: u32) -> Self {
+        let tree = vec![
+            ProcessNode {
+                pid: root_pid,
+                ppid: root_pid + 1, // Parent is the child (cycle!)
+                name: format!("process_{}.exe", root_pid),
+            },
+            ProcessNode {
+                pid: root_pid + 1,
+                ppid: root_pid, // Child's parent is root
+                name: format!("process_{}.exe", root_pid + 1),
+            },
+        ];
+
+        self.process_trees.insert(root_pid, tree);
+        self
+    }
 }
 
 #[cfg(test)]
@@ -1071,5 +1137,93 @@ mod tests {
         assert!(mock.get_process_tree(1234).is_err());
         assert!(mock.kill_process(1234, false).is_err());
     }
-}
 
+    // ========== Property-Based Tests ==========
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn prop_process_chain_depth_limit(
+            root_pid in 1000u32..=10000,
+            depth in 0usize..=20
+        ) {
+            // Property: Process chain should be created with correct depth
+            let mock = MockPlatform::new().with_process_chain(root_pid, depth);
+
+            if depth == 0 {
+                // Empty chain
+                assert!(mock.get_process_tree(root_pid).is_err());
+            } else {
+                let tree = mock.get_process_tree(root_pid).unwrap();
+                assert_eq!(tree.len(), depth);
+
+                // Verify chain structure
+                for (i, node) in tree.iter().enumerate() {
+                    assert_eq!(node.pid, root_pid + i as u32);
+                    if i == 0 {
+                        assert_eq!(node.ppid, 0); // Root has no parent
+                    } else {
+                        assert_eq!(node.ppid, root_pid + (i - 1) as u32);
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn prop_process_tree_cycle_detection(root_pid in 1000u32..=10000) {
+            // Property: Cycle should be detectable in process tree
+            let mock = MockPlatform::new().with_process_tree_cycle(root_pid);
+
+            let tree = mock.get_process_tree(root_pid).unwrap();
+            assert_eq!(tree.len(), 2);
+
+            // Verify cycle structure
+            assert_eq!(tree[0].pid, root_pid);
+            assert_eq!(tree[0].ppid, root_pid + 1); // Parent is child
+            assert_eq!(tree[1].pid, root_pid + 1);
+            assert_eq!(tree[1].ppid, root_pid); // Child's parent is root
+        }
+
+        #[test]
+        fn prop_process_tree_no_panic(
+            root_pid in 1u32..=100000,
+            depth in 0usize..=100
+        ) {
+            // Property: Creating process chains should never panic
+            let mock = MockPlatform::new().with_process_chain(root_pid, depth);
+
+            // Should not panic
+            let result = mock.get_process_tree(root_pid);
+
+            if depth == 0 {
+                assert!(result.is_err());
+            } else {
+                assert!(result.is_ok());
+            }
+        }
+
+        #[test]
+        fn prop_multiple_process_chains(
+            pid1 in 1000u32..=5000,
+            pid2 in 6000u32..=10000,
+            depth1 in 1usize..=10,
+            depth2 in 1usize..=10
+        ) {
+            // Property: Multiple independent process chains should coexist
+            let mock = MockPlatform::new()
+                .with_process_chain(pid1, depth1)
+                .with_process_chain(pid2, depth2);
+
+            let tree1 = mock.get_process_tree(pid1).unwrap();
+            let tree2 = mock.get_process_tree(pid2).unwrap();
+
+            assert_eq!(tree1.len(), depth1);
+            assert_eq!(tree2.len(), depth2);
+
+            // Verify trees are independent
+            assert_eq!(tree1[0].pid, pid1);
+            assert_eq!(tree2[0].pid, pid2);
+        }
+    }
+}
