@@ -1,6 +1,6 @@
 # Portly
 
-> Modern CLI tool for managing local development ports on Windows
+> Modern CLI tool for managing local development ports
 
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -8,6 +8,8 @@
 **Author:** [Sabry Awad](https://github.com/sabry-awad97)
 
 Portly helps you understand what's running on your ports with beautiful tables, framework detection, Docker integration, and interactive process management.
+
+**Cross-platform support:** Windows, macOS, Linux
 
 ## Features
 
@@ -410,7 +412,7 @@ cargo fmt
 
 Portly follows Clean Architecture principles:
 
-- **Platform Abstraction** - Windows-specific code isolated in `platform/` module
+- **Platform Abstraction** - Cross-platform support via platform trait
 - **Deep Modules** - Small interfaces, deep implementations
 - **TDD** - All features built with test-driven development
 - **No Unsafe** - Pure safe Rust throughout
@@ -420,20 +422,37 @@ Portly follows Clean Architecture principles:
 ```
 portly/
 ├── src/
-│   ├── main.rs           # Entry point and command handlers
+│   ├── main.rs           # Entry point and command orchestration
 │   ├── cli.rs            # Clap command definitions
 │   ├── scanner.rs        # Port scanning orchestration
 │   ├── process.rs        # Process information types
 │   ├── framework.rs      # Framework detection
-│   ├── display.rs        # Table/JSON output
+│   ├── display.rs        # Table/JSON output formatting
 │   ├── details.rs        # Port details view
 │   ├── config.rs         # Configuration management
-│   ├── docker.rs         # Docker integration
+│   ├── docker.rs         # Docker integration (async Bollard)
 │   ├── error.rs          # Error types
-│   └── platform/         # Platform abstraction
-│       ├── mod.rs        # Platform trait
-│       └── windows.rs    # Windows implementation
-└── tests/                # Integration tests
+│   ├── colors.rs         # Color utilities
+│   ├── progress.rs       # Progress indicators
+│   ├── typo.rs           # Command typo suggestions
+│   ├── commands/         # Command handlers
+│   │   ├── mod.rs        # Command module exports
+│   │   ├── list.rs       # List ports command
+│   │   ├── details.rs    # Port details command
+│   │   ├── kill.rs       # Kill process command
+│   │   ├── clean.rs      # Clean orphaned processes
+│   │   ├── ps.rs         # List dev processes
+│   │   ├── watch.rs      # Watch port changes
+│   │   └── config.rs     # Config management commands
+│   ├── platform/         # Platform abstraction
+│   │   ├── mod.rs        # Platform trait
+│   │   ├── native.rs     # Cross-platform implementation
+│   │   └── mock.rs       # Mock for testing
+│   └── snapshots/        # Snapshot tests (insta)
+├── tests/                # Integration tests
+├── scripts/              # Installation scripts
+├── docs/                 # Documentation
+└── issues/               # Local issue tracking
 ```
 
 ## Contributing

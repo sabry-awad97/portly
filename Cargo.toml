@@ -3,10 +3,10 @@ name = "portly"
 version = "0.1.1"
 edition = "2024"
 authors = ["Sabry Awad <dr.sabry1997@gmail.com>"]
-description = "Modern CLI tool for managing local development ports on Windows"
+description = "Modern CLI tool for managing local development ports"
 license = "MIT"
 repository = "https://github.com/sabry-awad97/portly"
-keywords = ["cli", "ports", "development", "windows"]
+keywords = ["cli", "ports", "development", "cross-platform"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]

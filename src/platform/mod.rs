@@ -8,7 +8,7 @@ use crate::process::{ProcessInfo, ProcessNode, RawPortInfo};
 ///
 /// # Implementations
 ///
-/// - `WindowsPlatform` - Windows-specific implementation using netstat2 and sysinfo
+/// - `NativePlatform` - Cross-platform implementation using sysinfo and netstat2
 ///
 /// # Examples
 ///
@@ -61,11 +61,9 @@ pub trait Platform {
 }
 
 // Platform-specific implementations
-#[cfg(target_os = "windows")]
-mod windows;
+mod native;
 
-#[cfg(target_os = "windows")]
-pub use windows::WindowsPlatform;
+pub use native::NativePlatform;
 
 // Mock platform for testing
 #[cfg(test)]
@@ -77,15 +75,5 @@ pub use mock::MockPlatform;
 
 /// Get the platform implementation for the current OS
 pub fn get_platform() -> Box<dyn Platform> {
-    #[cfg(target_os = "windows")]
-    {
-        Box::new(WindowsPlatform::new())
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        compile_error!(
-            "Portly currently only supports Windows. macOS and Linux support coming soon."
-        );
-    }
+    Box::new(NativePlatform::new())
 }

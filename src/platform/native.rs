@@ -4,12 +4,12 @@ use crate::process::{ProcessInfo, ProcessNode, ProcessStatus, RawPortInfo};
 use netstat2::{AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState, get_sockets_info};
 use sysinfo::{Pid, System};
 
-/// Windows platform implementation
-pub struct WindowsPlatform {
+/// Native platform implementation using cross-platform crates
+pub struct NativePlatform {
     system: System,
 }
 
-impl WindowsPlatform {
+impl NativePlatform {
     pub fn new() -> Self {
         let mut system = System::new();
         system.refresh_all();
@@ -17,7 +17,7 @@ impl WindowsPlatform {
     }
 }
 
-impl Platform for WindowsPlatform {
+impl Platform for NativePlatform {
     fn get_listening_ports(&self) -> Result<Vec<RawPortInfo>> {
         let af_flags = AddressFamilyFlags::IPV4 | AddressFamilyFlags::IPV6;
         let proto_flags = ProtocolFlags::TCP | ProtocolFlags::UDP;
@@ -132,42 +132,40 @@ impl Platform for WindowsPlatform {
     }
 
     fn kill_process(&self, pid: u32, force: bool) -> Result<()> {
-        // Verify process exists first
-        self.system
-            .process(Pid::from_u32(pid))
-            .ok_or(PortlyError::ProcessNotFound {
-                pid,
-                suggestion: Some(
-                    "• The process may have exited\n\
+        // Get process reference
+        let process =
+            self.system
+                .process(Pid::from_u32(pid))
+                .ok_or(PortlyError::ProcessNotFound {
+                    pid,
+                    suggestion: Some(
+                        "• The process may have exited\n\
                      • Run 'portly list' to see current processes\n\
                      • Check if you have permission to access this process"
-                        .to_string(),
-                ),
-            })?;
+                            .to_string(),
+                    ),
+                })?;
 
-        // Use Windows taskkill for better control
-        // /F flag for force kill (SIGKILL equivalent)
-        // Without /F, it's a graceful termination (SIGTERM equivalent)
-        let mut cmd = std::process::Command::new("taskkill");
-        cmd.arg("/PID").arg(pid.to_string());
+        // Use sysinfo's cross-platform kill method
+        // force=true: Send SIGKILL (immediate termination)
+        // force=false: Send SIGTERM (graceful termination)
+        let signal = if force {
+            sysinfo::Signal::Kill
+        } else {
+            sysinfo::Signal::Term
+        };
 
-        if force {
-            cmd.arg("/F");
+        match process.kill_with(signal) {
+            Some(true) => Ok(()),
+            Some(false) => Err(PortlyError::PlatformError(format!(
+                "Failed to kill process {}: Permission denied or process protected",
+                pid
+            ))),
+            None => Err(PortlyError::PlatformError(format!(
+                "Failed to kill process {}: Signal not supported on this platform",
+                pid
+            ))),
         }
-
-        let output = cmd.output().map_err(|e| {
-            PortlyError::PlatformError(format!("Failed to execute taskkill: {}", e))
-        })?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(PortlyError::PlatformError(format!(
-                "Failed to kill process {}: {}",
-                pid, stderr
-            )));
-        }
-
-        Ok(())
     }
 
     fn get_all_processes(&self) -> Result<Vec<ProcessInfo>> {
@@ -211,7 +209,7 @@ impl Platform for WindowsPlatform {
     }
 }
 
-impl Default for WindowsPlatform {
+impl Default for NativePlatform {
     fn default() -> Self {
         Self::new()
     }
