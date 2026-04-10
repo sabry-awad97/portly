@@ -9,6 +9,7 @@ mod error;
 mod framework;
 mod platform;
 mod process;
+mod progress;
 mod scanner;
 mod typo;
 

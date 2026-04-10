@@ -1,4 +1,6 @@
-use crate::{cli::Cli, config::Config, display::Display, scanner::Scanner};
+use crate::{
+    cli::Cli, config::Config, display::Display, progress::ProgressIndicator, scanner::Scanner,
+};
 use anyhow::Context;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -28,7 +30,9 @@ pub fn handle_watch(
     println!("Watching for port changes...");
     println!("Press Ctrl+C to stop\n");
 
-    // Initial scan
+    // Initial scan with progress indicator
+    let progress = ProgressIndicator::new("Performing initial scan...", cli.json, cli.quiet);
+
     let mut previous_ports: HashSet<u16> = scanner
         .scan(cli.all)
         .context("Failed to perform initial scan")?
@@ -36,13 +40,15 @@ pub fn handle_watch(
         .map(|p| p.port)
         .collect();
 
+    progress.finish();
+
     let sleep_duration = Duration::from_secs(interval);
 
     // Watch loop
     while running.load(Ordering::SeqCst) {
         thread::sleep(sleep_duration);
 
-        // Scan for current ports
+        // Scan for current ports (no progress indicator for periodic scans to keep it subtle)
         let current_ports_result = scanner.scan(cli.all);
 
         let current_ports = match current_ports_result {

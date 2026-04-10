@@ -18,6 +18,7 @@ tabled = { version = "0.20.0", features = ["ansi"] }
 colored = "3.1.1"
 unicode-width = "0.2.0"
 terminal_size = "0.4.4"
+indicatif = "0.18.4"
 
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }

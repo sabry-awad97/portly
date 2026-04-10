@@ -1,4 +1,4 @@
-use crate::{process, scanner::Scanner};
+use crate::{process, progress, scanner::Scanner};
 use anyhow::Context;
 use std::io::{self, Write};
 
@@ -23,8 +23,15 @@ pub fn handle_clean(
         processes: Vec<OrphanedProcess>,
     }
 
+    // Show progress indicator during scan
+    let scan_progress =
+        progress::ProgressIndicator::new("Scanning for orphaned processes...", json, false);
+
     // Scan for all ports including system processes
     let ports = scanner.scan(true).context("Failed to scan ports")?;
+
+    // Finish progress before displaying results
+    scan_progress.finish();
 
     // Find orphaned and zombie processes
     let orphaned: Vec<_> = ports
@@ -129,10 +136,16 @@ pub fn handle_clean(
 
     // Kill all orphaned processes
     let mut killed_count = 0;
+
+    // Create progress bar for kill operations
+    let kill_progress =
+        progress::ProgressCounter::new(orphaned.len(), "Killing processes", json, false);
+
     for p in &orphaned {
         match scanner.kill_process(p.pid, false) {
             Ok(_) => {
                 killed_count += 1;
+                kill_progress.inc();
                 if !json {
                     let success_msg = if no_color {
                         format!("✓ Killed {} (PID {})", p.process_name, p.pid)
@@ -146,6 +159,7 @@ pub fn handle_clean(
                 }
             }
             Err(e) => {
+                kill_progress.inc();
                 if !json {
                     let error_msg = if no_color {
                         format!("✗ Failed to kill {} (PID {}): {}", p.process_name, p.pid, e)
@@ -160,6 +174,8 @@ pub fn handle_clean(
             }
         }
     }
+
+    kill_progress.finish();
 
     if json {
         let result = CleanResult {
