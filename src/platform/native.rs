@@ -2,6 +2,7 @@ use crate::error::{PortlyError, Result};
 use crate::platform::Platform;
 use crate::process::{ProcessInfo, ProcessNode, ProcessStatus, RawPortInfo};
 use netstat2::{AddressFamilyFlags, ProtocolFlags, ProtocolSocketInfo, TcpState, get_sockets_info};
+use rayon::prelude::*;
 use sysinfo::{Pid, System};
 
 /// Native platform implementation using cross-platform crates
@@ -25,29 +26,29 @@ impl Platform for NativePlatform {
         let sockets = get_sockets_info(af_flags, proto_flags)
             .map_err(|e| PortlyError::PlatformError(format!("Failed to get socket info: {}", e)))?;
 
-        let mut ports = Vec::new();
+        // Use rayon for parallel processing of sockets
+        let ports: Vec<RawPortInfo> = sockets
+            .par_iter()
+            .filter_map(|socket| {
+                // Only include listening TCP ports
+                let is_listening = matches!(
+                    socket.protocol_socket_info,
+                    ProtocolSocketInfo::Tcp(ref tcp) if tcp.state == TcpState::Listen
+                );
 
-        for socket in sockets {
-            // Only include listening TCP ports
-            let is_listening = matches!(
-                socket.protocol_socket_info,
-                ProtocolSocketInfo::Tcp(ref tcp) if tcp.state == TcpState::Listen
-            );
+                if !is_listening {
+                    return None;
+                }
 
-            if !is_listening {
-                continue;
-            }
+                let port = match &socket.protocol_socket_info {
+                    ProtocolSocketInfo::Tcp(tcp) => tcp.local_port,
+                    ProtocolSocketInfo::Udp(udp) => udp.local_port,
+                };
 
-            let port = match socket.protocol_socket_info {
-                ProtocolSocketInfo::Tcp(tcp) => tcp.local_port,
-                ProtocolSocketInfo::Udp(udp) => udp.local_port,
-            };
-
-            // Get first PID (most sockets have one PID)
-            if let Some(&pid) = socket.associated_pids.first() {
-                ports.push(RawPortInfo { port, pid });
-            }
-        }
+                // Get first PID (most sockets have one PID)
+                socket.associated_pids.first().map(|&pid| RawPortInfo { port, pid })
+            })
+            .collect();
 
         Ok(ports)
     }

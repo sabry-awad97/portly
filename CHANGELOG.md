@@ -7,10 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Parallel port scanning using rayon for improved performance on systems with many listening ports
+
 ### Changed
 - Refactored process killing to use sysinfo's native cross-platform `kill_with()` method instead of platform-specific commands (e.g., taskkill on Windows)
 - Improved kill performance by eliminating process spawning overhead (50-100ms reduction)
 - Enhanced error messages for kill operations with better signal support detection
+- Port scanning now uses parallel iterators for faster processing of socket information
 
 ## [0.1.0] - 2026-04-07
 
@@ -59,5 +63,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - colored 3.1.1 - Terminal colors
 - serde 1.0.228 - Serialization
 - anyhow 1.0.102 - Error handling
+- rayon 1.11.0 - Parallel processing
 
 [0.1.0]: https://github.com/portly/portly/releases/tag/v0.1.0
