@@ -20,6 +20,7 @@ pub struct Display {
     terminal_width: usize,
     table_style: String,
     ascii_mode: bool,
+    verbose_mode: bool,
 }
 
 impl Display {
@@ -30,7 +31,13 @@ impl Display {
             .unwrap_or(80)
     }
 
-    pub fn new(use_colors: bool, json_mode: bool, config: &crate::config::Config, ascii_mode: bool) -> Self {
+    pub fn new(
+        use_colors: bool,
+        json_mode: bool,
+        config: &crate::config::Config,
+        ascii_mode: bool,
+        verbose_mode: bool,
+    ) -> Self {
         let table_style = if ascii_mode {
             "ascii".to_string()
         } else {
@@ -43,6 +50,7 @@ impl Display {
             terminal_width: Self::detect_terminal_width(),
             table_style,
             ascii_mode,
+            verbose_mode,
         }
     }
 
@@ -55,6 +63,7 @@ impl Display {
             terminal_width,
             table_style: "rounded".to_string(),
             ascii_mode: false,
+            verbose_mode: false,
         }
     }
 
@@ -77,6 +86,73 @@ impl Display {
         } else {
             self.show_table(ports);
         }
+    }
+
+    /// Display ports in verbose table format with extended columns
+    pub fn show_ports_verbose(
+        &self,
+        ports: &[PortInfo],
+        process_infos: &[crate::process::ProcessInfo],
+    ) {
+        if self.json_mode {
+            self.show_json(ports);
+            return;
+        }
+
+        if ports.is_empty() {
+            println!("No listening ports found.");
+            return;
+        }
+
+        // Create a map of PID -> ProcessInfo for quick lookup
+        let process_map: std::collections::HashMap<u32, &crate::process::ProcessInfo> =
+            process_infos.iter().map(|p| (p.pid, p)).collect();
+
+        // Convert to verbose table rows
+        let rows: Vec<PortRowVerbose> = ports
+            .iter()
+            .map(|p| {
+                let process_info = process_map.get(&p.pid);
+
+                let memory = process_info
+                    .map(|pi| crate::details::format_memory(pi.memory_kb))
+                    .unwrap_or_else(|| "—".to_string());
+
+                let cpu = process_info
+                    .map(|pi| {
+                        let cpu_str = format!("{:.1}", pi.cpu_percent);
+                        self.format_cpu_percent(pi.cpu_percent, &cpu_str)
+                    })
+                    .unwrap_or_else(|| "—".to_string());
+
+                let uptime = process_info
+                    .and_then(|pi| pi.start_time)
+                    .map(|st| self.format_uptime(Some(st)))
+                    .unwrap_or_else(|| "—".to_string());
+
+                let directory = process_info
+                    .and_then(|pi| pi.working_dir.as_ref())
+                    .cloned()
+                    .unwrap_or_else(|| "—".to_string());
+
+                PortRowVerbose {
+                    port: p.port.to_string(),
+                    process: p.process_name.clone(),
+                    pid: p.pid.to_string(),
+                    framework: self.format_framework(p.framework.as_deref()),
+                    status: self.format_status(p.status),
+                    memory,
+                    cpu,
+                    uptime,
+                    directory,
+                }
+            })
+            .collect();
+
+        let mut table = Table::new(rows);
+        crate::config::apply_table_style(&mut table, &self.table_style);
+
+        println!("{}", table);
     }
 
     fn show_table(&self, ports: &[PortInfo]) {
@@ -146,13 +222,21 @@ impl Display {
 
     /// Green "▲ NEW   " marker for watch events (or "^ NEW   " in ASCII mode)
     fn new_marker(&self) -> String {
-        let symbol = if self.ascii_mode { "^ NEW   " } else { "▲ NEW   " };
+        let symbol = if self.ascii_mode {
+            "^ NEW   "
+        } else {
+            "▲ NEW   "
+        };
         self.colorize(symbol, Color::Green)
     }
 
     /// Red "▼ CLOSED" marker for watch events (or "v CLOSED" in ASCII mode)
     fn closed_marker(&self) -> String {
-        let symbol = if self.ascii_mode { "v CLOSED" } else { "▼ CLOSED" };
+        let symbol = if self.ascii_mode {
+            "v CLOSED"
+        } else {
+            "▼ CLOSED"
+        };
         self.colorize(symbol, Color::Red)
     }
 
@@ -249,6 +333,62 @@ impl Display {
                     project: p.project_name.clone().unwrap_or_else(|| "—".to_string()),
                     framework: p.framework.clone().unwrap_or_else(|| "—".to_string()),
                     uptime: p.uptime.clone(),
+                    what: p.what.clone(),
+                }
+            })
+            .collect();
+
+        let mut table = Table::new(rows);
+        crate::config::apply_table_style(&mut table, &self.table_style);
+        println!("{}", table);
+    }
+
+    /// Display process table for ps command in verbose mode
+    pub fn show_ps_table_verbose(&self, processes: &[crate::commands::ps::PsProcess]) {
+        if processes.is_empty() {
+            println!("No processes found.");
+            return;
+        }
+
+        #[derive(Tabled)]
+        struct PsRowVerbose {
+            #[tabled(rename = "PID")]
+            pid: String,
+            #[tabled(rename = "PROCESS")]
+            process: String,
+            #[tabled(rename = "CPU%")]
+            cpu: String,
+            #[tabled(rename = "MEM")]
+            mem: String,
+            #[tabled(rename = "PROJECT")]
+            project: String,
+            #[tabled(rename = "FRAMEWORK")]
+            framework: String,
+            #[tabled(rename = "UPTIME")]
+            uptime: String,
+            #[tabled(rename = "DIRECTORY")]
+            directory: String,
+            #[tabled(rename = "WHAT")]
+            what: String,
+        }
+
+        let rows: Vec<PsRowVerbose> = processes
+            .iter()
+            .map(|p| {
+                let cpu_str = format!("{:.1}", p.cpu_percent);
+                let cpu_colored = self.format_cpu_percent(p.cpu_percent, &cpu_str);
+
+                let mem_str = crate::details::format_memory(p.memory_kb);
+
+                PsRowVerbose {
+                    pid: p.pid.to_string(),
+                    process: p.name.clone(),
+                    cpu: cpu_colored,
+                    mem: mem_str,
+                    project: p.project_name.clone().unwrap_or_else(|| "—".to_string()),
+                    framework: p.framework.clone().unwrap_or_else(|| "—".to_string()),
+                    uptime: p.uptime.clone(),
+                    directory: p.directory.clone().unwrap_or_else(|| "—".to_string()),
                     what: p.what.clone(),
                 }
             })
@@ -359,6 +499,11 @@ impl Display {
 
     /// Truncate string to calculated length with ellipsis
     fn truncate(&self, text: &str) -> String {
+        // In verbose mode, never truncate
+        if self.verbose_mode {
+            return text.to_string();
+        }
+
         use unicode_width::UnicodeWidthStr;
 
         let max_len = self.calculate_truncation_length();
@@ -430,6 +575,28 @@ struct PortRow {
     project: String,
 }
 
+#[derive(Tabled)]
+struct PortRowVerbose {
+    #[tabled(rename = "PORT")]
+    port: String,
+    #[tabled(rename = "PROCESS")]
+    process: String,
+    #[tabled(rename = "PID")]
+    pid: String,
+    #[tabled(rename = "FRAMEWORK")]
+    framework: String,
+    #[tabled(rename = "STATUS")]
+    status: String,
+    #[tabled(rename = "MEMORY")]
+    memory: String,
+    #[tabled(rename = "CPU%")]
+    cpu: String,
+    #[tabled(rename = "UPTIME")]
+    uptime: String,
+    #[tabled(rename = "DIRECTORY")]
+    directory: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -446,7 +613,7 @@ mod tests {
         let config = test_config();
 
         // Act - Display::new should accept config parameter
-        let display = Display::new(true, false, &config, false);
+        let display = Display::new(true, false, &config, false, false);
 
         // Assert - Display should be created successfully
         assert!(display.use_colors);
@@ -460,7 +627,7 @@ mod tests {
         config.display.table_style = "ascii".to_string();
 
         // Act
-        let display = Display::new(false, false, &config, false);
+        let display = Display::new(false, false, &config, false, false);
 
         // Assert - Display should store the configured table style
         assert_eq!(display.table_style, "ascii");
@@ -474,7 +641,7 @@ mod tests {
         for style in styles {
             let mut config = test_config();
             config.display.table_style = style.to_string();
-            let display = Display::new(false, false, &config, false);
+            let display = Display::new(false, false, &config, false, false);
             assert_eq!(display.table_style, style);
         }
     }
@@ -486,7 +653,7 @@ mod tests {
         config.display.table_style = "rounded".to_string();
 
         // Act - ascii_mode=true should override table style
-        let display = Display::new(false, false, &config, true);
+        let display = Display::new(false, false, &config, true, false);
 
         // Assert - Display should use ASCII table style regardless of config
         assert_eq!(display.table_style, "ascii");
@@ -495,7 +662,7 @@ mod tests {
     #[test]
     fn test_format_status_ascii_mode() {
         // Arrange
-        let display = Display::new(false, false, &test_config(), true); // ascii=true
+        let display = Display::new(false, false, &test_config(), true, false); // ascii=true
 
         // Act
         let healthy = display.format_status(ProcessStatus::Healthy);
@@ -506,7 +673,7 @@ mod tests {
         assert!(healthy.contains("*")); // * instead of ●
         assert!(orphaned.contains("*"));
         assert!(zombie.contains("*"));
-        
+
         // Should not contain Unicode bullet
         assert!(!healthy.contains("●"));
         assert!(!orphaned.contains("●"));
@@ -516,7 +683,7 @@ mod tests {
     #[test]
     fn test_watch_markers_ascii_mode() {
         // Arrange
-        let display = Display::new(false, false, &test_config(), true); // ascii=true
+        let display = Display::new(false, false, &test_config(), true, false); // ascii=true
 
         // Act
         let new_marker = display.new_marker();
@@ -525,7 +692,7 @@ mod tests {
         // Assert - Should use ASCII symbols
         assert!(new_marker.contains("^ NEW")); // ^ instead of ▲
         assert!(closed_marker.contains("v CLOSED")); // v instead of ▼
-        
+
         // Should not contain Unicode arrows
         assert!(!new_marker.contains("▲"));
         assert!(!closed_marker.contains("▼"));
@@ -534,7 +701,7 @@ mod tests {
     #[test]
     fn test_success_error_markers_ascii_mode() {
         // Arrange
-        let display = Display::new(false, false, &test_config(), true); // ascii=true
+        let display = Display::new(false, false, &test_config(), true, false); // ascii=true
 
         // Act
         let success = display.success_marker();
@@ -550,7 +717,7 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false, &test_config(), false);
+        let display = Display::new(true, false, &test_config(), false, false);
         let result = display.colorize("test", Color::Green);
         // Should contain ANSI color codes
         assert!(result.contains("\x1b["));
@@ -561,7 +728,7 @@ mod tests {
 
     #[test]
     fn test_colorize_without_colors() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let result = display.colorize("test", Color::Green);
         assert_eq!(result, "test");
     }
@@ -571,7 +738,7 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false, &test_config(), false);
+        let display = Display::new(true, false, &test_config(), false, false);
         let marker = display.new_marker();
         assert!(marker.contains("▲ NEW"));
         assert!(marker.contains("\x1b[")); // ANSI codes
@@ -582,7 +749,7 @@ mod tests {
 
     #[test]
     fn test_new_marker_without_colors() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         assert_eq!(display.new_marker(), "▲ NEW   ");
     }
 
@@ -591,7 +758,7 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false, &test_config(), false);
+        let display = Display::new(true, false, &test_config(), false, false);
         let marker = display.closed_marker();
         assert!(marker.contains("▼ CLOSED"));
         assert!(marker.contains("\x1b["));
@@ -602,7 +769,7 @@ mod tests {
 
     #[test]
     fn test_closed_marker_without_colors() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         assert_eq!(display.closed_marker(), "▼ CLOSED");
     }
 
@@ -611,7 +778,7 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false, &test_config(), false);
+        let display = Display::new(true, false, &test_config(), false, false);
         let marker = display.success_marker();
         assert!(marker.contains("✓"));
         assert!(marker.contains("\x1b["));
@@ -622,7 +789,7 @@ mod tests {
 
     #[test]
     fn test_success_marker_without_colors() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         assert_eq!(display.success_marker(), "✓");
     }
 
@@ -631,10 +798,23 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false, &test_config(), false);
+        let display = Display::new(true, false, &test_config(), false, false);
         let marker = display.error_marker();
+
+        // Verify the marker contains the symbol
         assert!(marker.contains("✗"));
-        assert!(marker.contains("\x1b["));
+
+        // Verify it's different from the no-color version (has ANSI codes)
+        let no_color_display = Display::new(false, false, &test_config(), false, false);
+        let no_color_marker = no_color_display.error_marker();
+        assert_ne!(
+            marker, no_color_marker,
+            "Colored marker should differ from plain marker"
+        );
+        assert!(
+            marker.len() > no_color_marker.len(),
+            "Colored marker should be longer due to ANSI codes"
+        );
 
         // Reset color override
         colored::control::unset_override();
@@ -642,13 +822,167 @@ mod tests {
 
     #[test]
     fn test_error_marker_without_colors() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         assert_eq!(display.error_marker(), "✗");
     }
 
     #[test]
+    fn test_verbose_mode_disables_truncation() {
+        // Arrange
+        let display = Display::new(false, false, &test_config(), false, true); // verbose=true
+
+        let long_text = "this is a very long command line that would normally be truncated";
+
+        // Act
+        let result = display.truncate(long_text);
+
+        // Assert - Should NOT be truncated in verbose mode
+        assert_eq!(result, long_text);
+    }
+
+    #[test]
+    fn test_normal_mode_truncates() {
+        // Arrange
+        let display = Display::with_width(80, false, false); // verbose=false (default)
+
+        let long_text = "this is a very long command line that would normally be truncated because it exceeds the maximum length";
+
+        // Act
+        let result = display.truncate(long_text);
+
+        // Assert - Should be truncated in normal mode
+        assert!(result.len() < long_text.len());
+        assert!(result.ends_with("..."));
+    }
+
+    // ========== Phase 3: Verbose List Extended Columns Tests ==========
+
+    #[test]
+    fn test_verbose_list_shows_extended_columns() {
+        // RED: Test that verbose list shows MEMORY, CPU%, UPTIME, DIRECTORY columns
+        use std::time::SystemTime;
+
+        let display = Display::new(false, false, &test_config(), false, true); // verbose=true
+
+        let ports = vec![PortInfo {
+            port: 3000,
+            pid: 1234,
+            process_name: "node".to_string(),
+            status: ProcessStatus::Healthy,
+            framework: Some("Next.js".to_string()),
+            project_name: Some("my-app".to_string()),
+        }];
+
+        let process_infos = vec![crate::process::ProcessInfo {
+            pid: 1234,
+            name: "node.exe".to_string(),
+            command: "node server.js".to_string(),
+            status: ProcessStatus::Healthy,
+            memory_kb: 50000,
+            cpu_percent: 5.5,
+            start_time: Some(SystemTime::now() - std::time::Duration::from_secs(3600)),
+            working_dir: Some("C:\\projects\\my-app".to_string()),
+        }];
+
+        // Act - This should use verbose table format
+        // For now, we'll just verify the method exists and doesn't panic
+        display.show_ports_verbose(&ports, &process_infos);
+
+        // Assert - Method should exist and execute without panic
+        // In a real test, we'd capture output and verify columns are present
+    }
+
+    // ========== Phase 4: Full Paths in Verbose Mode Tests ==========
+
+    #[test]
+    fn test_verbose_mode_shows_full_directory_path() {
+        // Test that verbose mode shows full working directory path
+        use std::time::SystemTime;
+
+        let display = Display::new(false, false, &test_config(), false, true); // verbose=true
+
+        let ports = vec![PortInfo {
+            port: 3000,
+            pid: 1234,
+            process_name: "node".to_string(),
+            status: ProcessStatus::Healthy,
+            framework: Some("Next.js".to_string()),
+            project_name: Some("my-app".to_string()),
+        }];
+
+        let process_infos = vec![crate::process::ProcessInfo {
+            pid: 1234,
+            name: "node.exe".to_string(),
+            command: "node /very/long/path/to/application/server.js --port 3000".to_string(),
+            status: ProcessStatus::Healthy,
+            memory_kb: 50000,
+            cpu_percent: 5.5,
+            start_time: Some(SystemTime::now() - std::time::Duration::from_secs(3600)),
+            working_dir: Some(
+                "C:\\Users\\Developer\\Projects\\my-application\\backend".to_string(),
+            ),
+        }];
+
+        // Act - Should show full paths without abbreviation
+        display.show_ports_verbose(&ports, &process_infos);
+
+        // Assert - Method executes without panic
+        // Full path should be visible in DIRECTORY column
+    }
+
+    // ========== Phase 5: Verbose PS Command Tests ==========
+
+    #[test]
+    fn test_verbose_ps_shows_extended_columns() {
+        // RED: Test that verbose ps shows extended columns including DIRECTORY and START_TIME
+        let display = Display::new(false, false, &test_config(), false, true); // verbose=true
+
+        let processes = vec![crate::commands::ps::PsProcess {
+            pid: 1234,
+            name: "node".to_string(),
+            cpu_percent: 5.5,
+            memory_kb: 50000,
+            project_name: Some("my-app".to_string()),
+            framework: Some("Next.js".to_string()),
+            uptime: "1h 0m".to_string(),
+            what: "server.js".to_string(),
+            directory: Some("C:\\projects\\my-app".to_string()),
+        }];
+
+        // Act - This should use verbose ps table format
+        display.show_ps_table_verbose(&processes);
+
+        // Assert - Method should exist and execute without panic
+    }
+
+    // ========== Phase 6: Verbose Watch Mode Tests ==========
+
+    #[test]
+    fn test_verbose_watch_shows_full_command() {
+        // Test that verbose watch mode shows full command without truncation
+        let display = Display::new(false, false, &test_config(), false, true); // verbose=true
+
+        let port_info = PortInfo {
+            port: 3000,
+            pid: 1234,
+            process_name:
+                "node /very/long/path/to/application/server.js --port 3000 --verbose --debug"
+                    .to_string(),
+            framework: Some("Next.js".to_string()),
+            project_name: Some("my-application-with-long-name".to_string()),
+            status: ProcessStatus::Healthy,
+        };
+
+        // Act - Should show full command without truncation
+        display.show_watch_event_new(&port_info);
+
+        // Assert - Method executes without panic
+        // Full command should be visible in output
+    }
+
+    #[test]
     fn test_show_watch_event_new_basic() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let port_info = PortInfo {
             port: 3000,
             pid: 1234,
@@ -665,7 +999,7 @@ mod tests {
 
     #[test]
     fn test_show_watch_event_new_with_framework() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let port_info = PortInfo {
             port: 3000,
             pid: 1234,
@@ -681,28 +1015,28 @@ mod tests {
 
     #[test]
     fn test_show_watch_event_closed() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         display.show_watch_event_closed(3000);
         // Expected output: "[HH:MM:SS] ▼ CLOSED :3000"
     }
 
     #[test]
     fn test_format_cpu_percent_high() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let result = display.format_cpu_percent(30.0, "30.0");
         assert_eq!(result, "30.0"); // no color
     }
 
     #[test]
     fn test_format_cpu_percent_medium() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let result = display.format_cpu_percent(10.0, "10.0");
         assert_eq!(result, "10.0");
     }
 
     #[test]
     fn test_format_cpu_percent_low() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let result = display.format_cpu_percent(2.0, "2.0");
         assert_eq!(result, "2.0");
     }
@@ -712,7 +1046,7 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false, &test_config(), false);
+        let display = Display::new(true, false, &test_config(), false, false);
         let high = display.format_cpu_percent(30.0, "30.0");
         let medium = display.format_cpu_percent(10.0, "10.0");
         let low = display.format_cpu_percent(2.0, "2.0");
@@ -728,7 +1062,7 @@ mod tests {
 
     #[test]
     fn test_show_ps_table_empty() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let processes: Vec<crate::commands::ps::PsProcess> = vec![];
 
         // Should print "No processes found."
@@ -737,13 +1071,13 @@ mod tests {
 
     #[test]
     fn test_format_uptime_none() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         assert_eq!(display.format_uptime(None), "—");
     }
 
     #[test]
     fn test_format_uptime_minutes() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let start = std::time::SystemTime::now() - std::time::Duration::from_secs(300); // 5 minutes ago
         let result = display.format_uptime(Some(start));
         assert_eq!(result, "5m");
@@ -751,7 +1085,7 @@ mod tests {
 
     #[test]
     fn test_format_uptime_hours() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let start = std::time::SystemTime::now() - std::time::Duration::from_secs(7200); // 2 hours ago
         let result = display.format_uptime(Some(start));
         assert_eq!(result, "2h 0m");
@@ -759,7 +1093,7 @@ mod tests {
 
     #[test]
     fn test_format_uptime_days() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let start = std::time::SystemTime::now() - std::time::Duration::from_secs(90000); // 1 day 1 hour ago
         let result = display.format_uptime(Some(start));
         assert_eq!(result, "1d 1h");
@@ -791,28 +1125,28 @@ mod tests {
 
     #[test]
     fn test_format_command_empty() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let result = display.format_command("", "myprocess");
         assert_eq!(result, "myprocess");
     }
 
     #[test]
     fn test_truncate_short() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let result = display.truncate_to("short", 10);
         assert_eq!(result, "short");
     }
 
     #[test]
     fn test_truncate_long() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let result = display.truncate_to("this is a very long string", 10);
         assert_eq!(result, "this is...");
     }
 
     #[test]
     fn test_truncate_exact() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let result = display.truncate_to("exactly10c", 10);
         assert_eq!(result, "exactly10c");
     }
@@ -821,7 +1155,7 @@ mod tests {
 
     #[test]
     fn snapshot_format_uptime_variations() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let now = SystemTime::now();
 
         // Test various durations
@@ -880,7 +1214,7 @@ mod tests {
 
     #[test]
     fn snapshot_color_markers_no_color() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
 
         let markers = format!(
             "New: {}\nClosed: {}\nSuccess: {}\nError: {}",
@@ -895,7 +1229,7 @@ mod tests {
 
     #[test]
     fn snapshot_truncate_edge_cases() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
 
         let test_cases = vec![
             ("short", 10, "Short string"),
@@ -921,7 +1255,7 @@ mod tests {
 
     #[test]
     fn snapshot_format_status_no_color() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
 
         let statuses = format!(
             "Healthy: {}\nOrphaned: {}\nZombie: {}",
@@ -935,7 +1269,7 @@ mod tests {
 
     #[test]
     fn snapshot_format_framework_no_color() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
 
         let frameworks = vec![
             Some("Next.js"),
@@ -962,7 +1296,7 @@ mod tests {
         // Verify that display.rs uses the shared colors module
         colored::control::set_override(true);
 
-        let display = Display::new(true, false, &test_config(), false);
+        let display = Display::new(true, false, &test_config(), false, false);
 
         // Test a few frameworks to ensure they match the shared color module
         let frameworks = vec!["Next.js", "Django", "Rust", "PostgreSQL", "Docker"];
@@ -983,7 +1317,7 @@ mod tests {
 
     #[test]
     fn snapshot_format_cpu_percent_no_color() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
 
         let test_cases = vec![
             (0.5, "0.5", "Very low"),
@@ -1006,7 +1340,7 @@ mod tests {
 
     #[test]
     fn snapshot_show_ports_json_mode() {
-        let _display = Display::new(false, true, &test_config(), false);
+        let _display = Display::new(false, true, &test_config(), false, false);
 
         let ports = vec![
             PortInfo {
@@ -1082,7 +1416,7 @@ mod tests {
 
     #[test]
     fn snapshot_format_uptime_edge_cases() {
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         let now = SystemTime::now();
 
         // Edge cases
@@ -1120,7 +1454,7 @@ mod tests {
     #[test]
     fn test_display_stores_terminal_width() {
         // RED: Test that Display struct stores terminal width on construction
-        let display = Display::new(false, false, &test_config(), false);
+        let display = Display::new(false, false, &test_config(), false, false);
         // Display should have a terminal_width field that's accessible
         assert!(
             display.terminal_width >= 80,

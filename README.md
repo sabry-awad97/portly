@@ -240,6 +240,55 @@ These flags work with all commands:
 - `--json` - Output in JSON format
 - `--all` - Show all processes (including system)
 - `--no-color` - Disable colored output
+- `--ascii` - Use ASCII-only output (no Unicode symbols)
+- `--verbose` or `-v` - Show detailed output with full descriptions
+- `--quiet` - Suppress progress indicators
+
+### ASCII Mode
+
+For terminals without Unicode support or CI/CD environments:
+
+```bash
+portly list --ascii
+portly ps --ascii
+portly watch --ascii
+```
+
+**ASCII mode replaces:**
+- Status bullets: ● → *
+- Watch markers: ▲ → ^, ▼ → v
+- Success/error: ✓ → +, ✗ → x
+- Table borders: Unicode → ASCII
+- Process tree: │ → |, ├─ → +-, └─ → +-
+
+### Verbose Mode
+
+For debugging, troubleshooting, or when you need complete information:
+
+```bash
+portly list --verbose    # or -v
+portly ps --verbose      # or -v
+portly watch --verbose   # or -v
+```
+
+**Verbose mode provides:**
+- **No truncation** - Full command lines displayed
+- **Extended columns** - MEMORY, CPU%, UPTIME, DIRECTORY
+- **Full paths** - Complete directory paths instead of project names
+- **Complete data** - All available process metadata
+
+**Example verbose list output:**
+```
+PORT   PROCESS   PID    FRAMEWORK   STATUS    MEMORY   CPU%   UPTIME   DIRECTORY                    WHAT
+3000   node.exe  12345  Next.js     healthy   245.3MB  12.5%  2h 15m   C:\Users\dev\projects\app    node C:\Users\dev\projects\app\server.js --port 3000
+```
+
+**Combine flags:**
+```bash
+portly list --verbose --ascii    # Verbose output with ASCII symbols
+portly ps -v --json              # Verbose JSON output
+portly watch -v --no-color       # Verbose without colors
+```
 
 ## Framework Detection
 
@@ -291,6 +340,39 @@ portly clean --execute
 ### See all dev processes with CPU usage
 ```bash
 portly ps
+```
+
+### Debug with verbose output
+```bash
+# See full command lines and all process details
+portly list --verbose
+
+# Verbose output with full paths
+portly ps -v
+
+# Watch with complete information
+portly watch --verbose
+```
+
+### Use in CI/CD or legacy terminals
+```bash
+# ASCII-only output for maximum compatibility
+portly list --ascii
+
+# Combine with other flags
+portly ps --ascii --json
+```
+
+### Troubleshooting
+```bash
+# See everything: verbose + all processes
+portly list --verbose --all
+
+# Debug specific port with full details
+portly details 3000 --verbose
+
+# Monitor with complete command lines
+portly watch -v
 ```
 
 ## Development

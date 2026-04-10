@@ -16,6 +16,7 @@ pub struct PsProcess {
     pub framework: Option<String>,
     pub uptime: String,
     pub what: String,
+    pub directory: Option<String>,
 }
 
 pub fn handle_ps(
@@ -24,6 +25,7 @@ pub fn handle_ps(
     json: bool,
     no_color: bool,
     ascii: bool,
+    verbose: bool,
     config: &crate::config::Config,
 ) -> anyhow::Result<()> {
     // Get platform to access all processes
@@ -44,7 +46,7 @@ pub fn handle_ps(
     let mut ps_processes: Vec<PsProcess> = processes
         .into_iter()
         .map(|p| {
-            let display = crate::display::Display::new(false, false, config, false);
+            let display = crate::display::Display::new(false, false, config, false, false);
             let uptime = display.format_uptime(p.start_time);
             let what = display.format_command(&p.command, &p.name);
             let project_name = p
@@ -67,6 +69,7 @@ pub fn handle_ps(
                 framework,
                 uptime,
                 what,
+                directory: p.working_dir,
             }
         })
         .collect();
@@ -96,8 +99,12 @@ pub fn handle_ps(
         println!("{}", serde_json::to_string_pretty(&json_output)?);
     } else {
         // Table output
-        let display = crate::display::Display::new(!no_color, false, config, ascii);
-        display.show_ps_table(&ps_processes);
+        let display = crate::display::Display::new(!no_color, false, config, ascii, verbose);
+        if verbose {
+            display.show_ps_table_verbose(&ps_processes);
+        } else {
+            display.show_ps_table(&ps_processes);
+        }
     }
 
     Ok(())

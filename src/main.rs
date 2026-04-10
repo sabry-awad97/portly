@@ -45,7 +45,14 @@ async fn run() -> anyhow::Result<()> {
             commands::handle_list(&mut scanner, &cli, &config)?;
         }
         Some(Commands::Details { port, no_prompt }) => {
-            commands::handle_details(&mut scanner, port, no_prompt, cli.json, cli.no_color, cli.ascii)?;
+            commands::handle_details(
+                &mut scanner,
+                port,
+                no_prompt,
+                cli.json,
+                cli.no_color,
+                cli.ascii,
+            )?;
         }
         Some(Commands::Kill { targets, force }) => {
             commands::handle_kill(&mut scanner, &targets, force, cli.json, cli.no_color)?;
@@ -54,7 +61,15 @@ async fn run() -> anyhow::Result<()> {
             commands::handle_clean(&mut scanner, execute, cli.json, cli.no_color)?;
         }
         Some(Commands::Ps) => {
-            commands::handle_ps(&mut scanner, cli.all, cli.json, cli.no_color, cli.ascii, &config)?;
+            commands::handle_ps(
+                &mut scanner,
+                cli.all,
+                cli.json,
+                cli.no_color,
+                cli.ascii,
+                cli.verbose,
+                &config,
+            )?;
         }
         Some(Commands::Watch { interval }) => {
             commands::handle_watch(&mut scanner, interval, &cli, &config)?;

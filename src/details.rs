@@ -195,7 +195,7 @@ fn display_process_tree(tree: &[crate::process::ProcessNode], ascii_mode: bool) 
             // Unicode mode: use box-drawing characters
             ("│  ", if i == 0 { "├─" } else { "└─" })
         };
-        
+
         let indent = vertical.repeat(i);
         println!("{}{} {} ({})", indent, connector, node.name, node.pid);
     }
@@ -274,7 +274,7 @@ mod tests {
         // In ASCII mode, should use |, +, - instead of │, ├, └
         // Manual verification: output should contain ASCII characters
         display_process_tree(&tree, true);
-        
+
         // Test passes if no panic occurs
         assert!(true);
     }

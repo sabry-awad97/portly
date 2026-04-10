@@ -29,6 +29,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub ascii: bool,
 
+    /// Show detailed output with full descriptions (no truncation)
+    #[arg(short = 'v', long, global = true)]
+    pub verbose: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -110,5 +114,17 @@ mod tests {
     fn test_cli_accepts_ascii_flag() {
         let cli = Cli::parse_from(["portly", "--ascii", "list"]);
         assert!(cli.ascii);
+    }
+
+    #[test]
+    fn test_cli_accepts_verbose_flag() {
+        let cli = Cli::parse_from(["portly", "--verbose", "list"]);
+        assert!(cli.verbose);
+    }
+
+    #[test]
+    fn test_cli_accepts_verbose_short_flag() {
+        let cli = Cli::parse_from(["portly", "-v", "list"]);
+        assert!(cli.verbose);
     }
 }
