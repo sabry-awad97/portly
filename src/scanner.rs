@@ -8,7 +8,7 @@ use std::path::Path;
 /// Port scanner orchestrator.
 ///
 /// Coordinates platform-specific port scanning with framework detection
-/// and Docker integration.
+/// and Docker integration using async Bollard API.
 ///
 /// # Examples
 ///
@@ -16,10 +16,13 @@ use std::path::Path;
 /// use portly::scanner::Scanner;
 /// use portly::platform::get_platform;
 ///
-/// let platform = get_platform();
-/// let mut scanner = Scanner::new(platform);
-/// let ports = scanner.scan(false)?;
-/// # Ok::<(), portly::error::PortlyError>(())
+/// #[tokio::main]
+/// async fn main() -> Result<(), portly::error::PortlyError> {
+///     let platform = get_platform();
+///     let mut scanner = Scanner::new(platform).await;
+///     let ports = scanner.scan(false)?;
+///     Ok(())
+/// }
 /// ```
 pub struct Scanner {
     platform: Box<dyn Platform>,
@@ -28,47 +31,14 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    /// Create a new scanner with the given platform implementation (deprecated)
-    ///
-    /// # Deprecated
-    ///
-    /// Use `new_async()` instead. This method uses synchronous Docker client
-    /// which is slower and less reliable than the async Bollard API.
-    ///
-    /// This method will be removed in v0.2.0.
-    ///
-    /// # Arguments
-    ///
-    /// * `platform` - Platform-specific implementation for port scanning
-    #[deprecated(
-        since = "0.1.1",
-        note = "Use `new_async()` instead for better performance"
-    )]
-    #[allow(deprecated)]
-    #[allow(dead_code)] // Kept for backward compatibility, will be removed in v0.2.0
-    pub fn new(platform: Box<dyn Platform>) -> Self {
-        Self {
-            platform,
-            framework_detector: FrameworkDetector::new(),
-            docker_client: DockerClient::new(),
-        }
-    }
-
     /// Create a new async scanner with Bollard-based Docker client
     ///
     /// # Arguments
     ///
     /// * `platform` - Platform-specific implementation for port scanning
-    ///
-    /// # Errors
-    ///
-    /// Returns error if Docker connection fails (gracefully falls back to empty client)
-    pub async fn new_async(platform: Box<dyn Platform>) -> Self {
-        // Try to create async Docker client, fallback to sync if it fails
-        #[allow(deprecated)]
-        let docker_client = DockerClient::new_async()
-            .await
-            .unwrap_or_else(|_| DockerClient::new());
+    pub async fn new(platform: Box<dyn Platform>) -> Self {
+        // Try to create async Docker client, fallback to empty client if it fails
+        let docker_client = DockerClient::new().await.unwrap_or_else(|_| DockerClient::empty());
 
         Self {
             platform,
@@ -300,11 +270,19 @@ fn extract_command_description(cmd_line: &str, process_name: &str) -> String {
 }
 
 #[cfg(test)]
-#[allow(deprecated)] // Allow deprecated methods in tests for backward compatibility testing
 mod tests {
     use super::*;
     use crate::platform::MockPlatform;
     use crate::process::{ProcessInfo, ProcessStatus};
+
+    // Helper to create scanner synchronously for tests
+    fn new_scanner_sync(platform: Box<dyn Platform>) -> Scanner {
+        Scanner {
+            platform,
+            framework_detector: FrameworkDetector::new(),
+            docker_client: crate::docker::DockerClient::empty(),
+        }
+    }
 
     #[test]
     fn test_extract_command_description_node() {
@@ -392,7 +370,7 @@ mod tests {
                 },
             );
 
-        let mut scanner = Scanner::new(Box::new(mock));
+        let mut scanner = new_scanner_sync(Box::new(mock));
         let ports = scanner.scan(false).unwrap();
 
         // Should only include node.exe, not svchost.exe
@@ -407,7 +385,7 @@ mod tests {
             .with_port(3000, 1234)
             .with_error_on_pid(1234);
 
-        let mut scanner = Scanner::new(Box::new(mock));
+        let mut scanner = new_scanner_sync(Box::new(mock));
         let ports = scanner.scan(false).unwrap();
 
         // Should skip port with exited process
@@ -430,7 +408,7 @@ mod tests {
             },
         );
 
-        let mut scanner = Scanner::new(Box::new(mock));
+        let mut scanner = new_scanner_sync(Box::new(mock));
         let ports = scanner.scan(false).unwrap();
 
         assert_eq!(ports.len(), 1);
@@ -453,7 +431,7 @@ mod tests {
             },
         );
 
-        let mut scanner = Scanner::new(Box::new(mock));
+        let mut scanner = new_scanner_sync(Box::new(mock));
         let ports = scanner.scan(false).unwrap();
 
         assert_eq!(ports.len(), 1);
@@ -464,7 +442,7 @@ mod tests {
     fn test_scanner_handles_empty_port_list() {
         let mock = MockPlatform::new();
 
-        let mut scanner = Scanner::new(Box::new(mock));
+        let mut scanner = new_scanner_sync(Box::new(mock));
         let ports = scanner.scan(false).unwrap();
 
         assert_eq!(ports.len(), 0);
@@ -490,7 +468,7 @@ mod tests {
                 },
             );
 
-        let mut scanner = Scanner::new(Box::new(mock));
+        let mut scanner = new_scanner_sync(Box::new(mock));
         let ports = scanner.scan(false).unwrap();
 
         assert_eq!(ports.len(), 3);
@@ -534,7 +512,7 @@ mod tests {
                 },
             );
 
-        let mut scanner = Scanner::new(Box::new(mock));
+        let mut scanner = new_scanner_sync(Box::new(mock));
         let ports = scanner.scan(true).unwrap(); // show_all = true
 
         // Should include both processes
@@ -547,7 +525,7 @@ mod tests {
             .with_port(3000, 1234)
             .with_error_on_pid(1234);
 
-        let mut scanner = Scanner::new(Box::new(mock));
+        let mut scanner = new_scanner_sync(Box::new(mock));
 
         // scan() should handle error gracefully and skip the port
         let ports = scanner.scan(false).unwrap();
@@ -578,7 +556,7 @@ mod tests {
                     },
                 );
 
-            let mut scanner = Scanner::new(Box::new(mock));
+            let mut scanner = new_scanner_sync(Box::new(mock));
             let result = scanner.scan(false);
 
             // Should not panic and return valid result
@@ -609,7 +587,7 @@ mod tests {
                     },
                 );
 
-            let mut scanner = Scanner::new(Box::new(mock));
+            let mut scanner = new_scanner_sync(Box::new(mock));
             let result = scanner.scan(false);
 
             assert!(result.is_ok());
@@ -634,7 +612,7 @@ mod tests {
                     },
                 );
 
-            let mut scanner = Scanner::new(Box::new(mock));
+            let mut scanner = new_scanner_sync(Box::new(mock));
             let result = scanner.get_port_details(port);
 
             // Should either find the port or return PortNotFound error
@@ -700,7 +678,7 @@ mod tests {
                     },
                 );
 
-            let mut scanner = Scanner::new(Box::new(mock));
+            let mut scanner = new_scanner_sync(Box::new(mock));
             let ports = scanner.scan(false).unwrap();
 
             // Should be sorted: port1 < port2 < port3

@@ -35,7 +35,7 @@ async fn run() -> anyhow::Result<()> {
     let platform = get_platform();
 
     // Create scanner with async Docker client
-    let mut scanner = Scanner::new_async(platform).await;
+    let mut scanner = Scanner::new(platform).await;
 
     // Handle commands
     match cli.command {

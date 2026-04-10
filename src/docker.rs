@@ -20,45 +20,18 @@ pub struct DockerContainer {
 }
 
 impl DockerClient {
-    /// Create a new DockerClient (synchronous, deprecated)
-    ///
-    /// # Deprecated
-    ///
-    /// Use `new_async()` instead. This method uses CLI-based Docker integration
-    /// which is slower and less reliable than the async Bollard API.
-    ///
-    /// This method will be removed in v0.2.0.
-    #[deprecated(
-        since = "0.1.1",
-        note = "Use `new_async()` instead for better performance and reliability"
-    )]
-    #[allow(deprecated)]
-    pub fn new() -> Self {
-        let available = Self::check_docker_available();
-        let containers = if available {
-            Self::fetch_containers().unwrap_or_default()
-        } else {
-            HashMap::new()
-        };
-
-        Self {
-            containers,
-            docker: None,
-        }
-    }
-
     /// Create a new async DockerClient with Bollard API
     ///
     /// # Errors
     ///
     /// Returns error if Docker connection fails
-    pub async fn new_async() -> Result<Self> {
+    pub async fn new() -> Result<Self> {
         // Try to connect to Docker daemon
         let docker =
             Docker::connect_with_local_defaults().context("Failed to connect to Docker daemon")?;
 
         // Fetch containers using API
-        let containers = Self::fetch_containers_async(&docker)
+        let containers = Self::fetch_containers(&docker)
             .await
             .unwrap_or_default();
 
@@ -68,90 +41,21 @@ impl DockerClient {
         })
     }
 
+    /// Create an empty DockerClient (for fallback when Docker is unavailable)
+    pub(crate) fn empty() -> Self {
+        Self {
+            containers: HashMap::new(),
+            docker: None,
+        }
+    }
+
     /// Get container information for a port
     pub fn get_container_info(&self, port: u16) -> Option<&DockerContainer> {
         self.containers.get(&port)
     }
 
-    /// Check if Docker CLI is available and daemon is running (deprecated)
-    ///
-    /// # Deprecated
-    ///
-    /// This method is only used by the deprecated `new()` constructor.
-    /// The async path uses `Docker::connect_with_local_defaults()` which handles
-    /// availability checking internally.
-    #[deprecated(
-        since = "0.1.1",
-        note = "Internal method for deprecated sync constructor"
-    )]
-    fn check_docker_available() -> bool {
-        use std::process::Command;
-
-        Command::new("docker")
-            .arg("ps")
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
-    }
-
-    /// Fetch all running containers with port mappings (deprecated)
-    ///
-    /// # Deprecated
-    ///
-    /// This method uses CLI-based Docker integration. Use `fetch_containers_async()`
-    /// instead for better performance and reliability.
-    #[deprecated(since = "0.1.1", note = "Use `fetch_containers_async()` instead")]
-    #[allow(deprecated)]
-    fn fetch_containers() -> Option<HashMap<u16, DockerContainer>> {
-        use std::process::Command;
-
-        let output = Command::new("docker")
-            .args([
-                "ps",
-                "--format",
-                "{{.Ports}}\t{{.Names}}\t{{.Image}}\t{{.Status}}",
-            ])
-            .output()
-            .ok()?;
-
-        if !output.status.success() {
-            return None;
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let mut containers = HashMap::new();
-
-        for line in stdout.lines() {
-            let parts: Vec<&str> = line.split('\t').collect();
-            if parts.len() < 4 {
-                continue;
-            }
-
-            let ports_str = parts[0];
-            let name = parts[1].to_string();
-            let image = parts[2].to_string();
-
-            // Parse host ports from port mapping
-            let host_ports = Self::parse_host_ports(ports_str);
-
-            if !host_ports.is_empty() {
-                let container = DockerContainer {
-                    name: name.clone(),
-                    image: image.clone(),
-                };
-
-                // Map each host port to this container
-                for port in host_ports {
-                    containers.insert(port, container.clone());
-                }
-            }
-        }
-
-        Some(containers)
-    }
-
-    /// Fetch containers using Bollard API (async)
-    async fn fetch_containers_async(docker: &Docker) -> Option<HashMap<u16, DockerContainer>> {
+    /// Fetch containers using Bollard API
+    async fn fetch_containers(docker: &Docker) -> Option<HashMap<u16, DockerContainer>> {
         // List all running containers (no filters = running only by default)
         let containers_result = docker.list_containers(None).await;
 
@@ -174,7 +78,7 @@ impl DockerClient {
 
             // Extract host ports from port mappings
             let host_ports = if let Some(ports) = container.ports {
-                Self::extract_host_ports_from_api(&ports)
+                Self::extract_host_ports(&ports)
             } else {
                 Vec::new()
             };
@@ -196,45 +100,8 @@ impl DockerClient {
     }
 
     /// Extract host ports from Bollard API Port structs
-    fn extract_host_ports_from_api(ports: &[bollard::models::PortSummary]) -> Vec<u16> {
+    fn extract_host_ports(ports: &[bollard::models::PortSummary]) -> Vec<u16> {
         ports.iter().filter_map(|port| port.public_port).collect()
-    }
-
-    /// Parse host ports from Docker port mapping string (deprecated)
-    ///
-    /// # Deprecated
-    ///
-    /// This method parses CLI output strings. Use `extract_host_ports_from_api()`
-    /// instead for type-safe port extraction from Bollard API types.
-    ///
-    /// Examples:
-    /// - "0.0.0.0:5432->5432/tcp" → \[5432\]
-    /// - "0.0.0.0:3000->3000/tcp, 0.0.0.0:3001->3001/tcp" → \[3000, 3001\]
-    /// - ":::5432->5432/tcp" → \[5432\]
-    #[deprecated(since = "0.1.1", note = "Use `extract_host_ports_from_api()` instead")]
-    fn parse_host_ports(ports_str: &str) -> Vec<u16> {
-        let mut ports = Vec::new();
-
-        // Regex pattern: (?:0\.0\.0\.0|:::):(\d+)->
-        // Matches: 0.0.0.0:5432-> or :::5432->
-        for part in ports_str.split(',') {
-            let part = part.trim();
-
-            // Find the host port (before ->)
-            if let Some(arrow_pos) = part.find("->") {
-                let before_arrow = &part[..arrow_pos];
-
-                // Find the last colon before ->
-                if let Some(colon_pos) = before_arrow.rfind(':') {
-                    let port_str = &before_arrow[colon_pos + 1..];
-                    if let Ok(port) = port_str.parse::<u16>() {
-                        ports.push(port);
-                    }
-                }
-            }
-        }
-
-        ports
     }
 
     /// Detect framework from Docker image name
@@ -307,48 +174,10 @@ impl DockerClient {
     }
 }
 
-impl Default for DockerClient {
-    /// Default implementation (deprecated)
-    ///
-    /// # Deprecated
-    ///
-    /// Use `new_async()` instead. This uses the deprecated `new()` method.
-    #[allow(deprecated)]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
-#[allow(deprecated)] // Allow deprecated methods in tests for backward compatibility testing
 mod tests {
     use super::*;
     use proptest::prelude::*;
-
-    #[test]
-    fn test_parse_host_ports_single() {
-        let ports = DockerClient::parse_host_ports("0.0.0.0:5432->5432/tcp");
-        assert_eq!(ports, vec![5432]);
-    }
-
-    #[test]
-    fn test_parse_host_ports_multiple() {
-        let ports =
-            DockerClient::parse_host_ports("0.0.0.0:3000->3000/tcp, 0.0.0.0:3001->3001/tcp");
-        assert_eq!(ports, vec![3000, 3001]);
-    }
-
-    #[test]
-    fn test_parse_host_ports_ipv6() {
-        let ports = DockerClient::parse_host_ports(":::5432->5432/tcp");
-        assert_eq!(ports, vec![5432]);
-    }
-
-    #[test]
-    fn test_parse_host_ports_empty() {
-        let ports = DockerClient::parse_host_ports("");
-        assert!(ports.is_empty());
-    }
 
     #[test]
     fn test_detect_framework_postgres() {
@@ -418,67 +247,6 @@ mod tests {
 
     proptest! {
         #[test]
-        fn prop_parse_host_ports_no_panic(input in ".*") {
-            // Property: Parser should never panic with any input
-            let result = DockerClient::parse_host_ports(&input);
-
-            // Should return Vec<u16> (possibly empty)
-            // All returned ports should be valid (> 0)
-            assert!(result.is_empty() || result.iter().all(|&p| p > 0));
-        }
-
-        #[test]
-        fn prop_parse_host_ports_valid_ipv4(
-            port in 1u16..=65535,
-            container_port in 1u16..=65535
-        ) {
-            // Property: Valid IPv4 format should parse correctly
-            let input = format!("0.0.0.0:{}->{}/ tcp", port, container_port);
-            let result = DockerClient::parse_host_ports(&input);
-
-            assert_eq!(result, vec![port]);
-        }
-
-        #[test]
-        fn prop_parse_host_ports_valid_ipv6(
-            port in 1u16..=65535,
-            container_port in 1u16..=65535
-        ) {
-            // Property: Valid IPv6 format should parse correctly
-            let input = format!(":::{}->{}/ tcp", port, container_port);
-            let result = DockerClient::parse_host_ports(&input);
-
-            assert_eq!(result, vec![port]);
-        }
-
-        #[test]
-        fn prop_parse_host_ports_multiple(
-            port1 in 1u16..=65535,
-            port2 in 1u16..=65535,
-            container_port1 in 1u16..=65535,
-            container_port2 in 1u16..=65535
-        ) {
-            // Property: Multiple ports should parse correctly
-            let input = format!(
-                "0.0.0.0:{}->{}/ tcp, 0.0.0.0:{}->{}/ tcp",
-                port1, container_port1, port2, container_port2
-            );
-            let result = DockerClient::parse_host_ports(&input);
-
-            assert_eq!(result, vec![port1, port2]);
-        }
-
-        #[test]
-        fn prop_parse_host_ports_empty_returns_empty(input in ".*") {
-            // Property: If no valid ports found, return empty vec
-            let result = DockerClient::parse_host_ports(&input);
-
-            // Should never panic, always return a vec
-            // Number of ports should not exceed number of "->" patterns
-            assert!(result.len() <= input.matches("->").count());
-        }
-
-        #[test]
         fn prop_detect_framework_no_panic(image in ".*") {
             // Property: Framework detection should never panic
             let result = DockerClient::detect_framework_from_image(&image);
@@ -497,32 +265,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_docker_client_connects() {
-        // RED: Test that DockerClient can be created asynchronously
-        let result = DockerClient::new_async().await;
-
+        let result = DockerClient::new().await;
         // Should return Ok even if Docker is not available (graceful degradation)
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_fetch_containers_via_api() {
-        // RED: Test that containers are fetched via Bollard API
-        let result = DockerClient::new_async().await;
-
+        let result = DockerClient::new().await;
         // Should successfully create client (even if Docker is unavailable)
         assert!(result.is_ok());
-
-        if let Ok(client) = result {
-            // Should have containers map (empty or populated)
-            // This tests that fetch_containers_async was called
-            // Length is always >= 0 for HashMap, so just verify it exists
-            let _ = client.containers.len();
-        }
     }
 
     #[test]
     fn test_extract_host_ports_from_api() {
-        // RED: Test that port mappings are extracted correctly from API types
         use bollard::models::{PortSummary, PortSummaryTypeEnum};
 
         let ports = vec![
@@ -540,7 +296,7 @@ mod tests {
             },
         ];
 
-        let host_ports = DockerClient::extract_host_ports_from_api(&ports);
+        let host_ports = DockerClient::extract_host_ports(&ports);
         assert_eq!(host_ports, vec![5432, 3000]);
     }
 }
