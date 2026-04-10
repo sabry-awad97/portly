@@ -17,14 +17,45 @@ use tabled::{Table, Tabled, settings::Style};
 pub struct Display {
     use_colors: bool,
     json_mode: bool,
+    terminal_width: usize,
 }
 
 impl Display {
+    /// Detect terminal width, defaulting to 80 columns if unavailable
+    pub fn detect_terminal_width() -> usize {
+        terminal_size::terminal_size()
+            .map(|(terminal_size::Width(w), _)| w as usize)
+            .unwrap_or(80)
+    }
+
     pub fn new(use_colors: bool, json_mode: bool) -> Self {
         Self {
             use_colors,
             json_mode,
+            terminal_width: Self::detect_terminal_width(),
         }
+    }
+
+    /// Create Display with explicit terminal width (for testing)
+    #[cfg(test)]
+    pub fn with_width(terminal_width: usize, use_colors: bool, json_mode: bool) -> Self {
+        Self {
+            use_colors,
+            json_mode,
+            terminal_width,
+        }
+    }
+
+    /// Calculate appropriate truncation length based on terminal width
+    fn calculate_truncation_length(&self) -> usize {
+        // Reserve space for table borders, padding, and other columns
+        // Rough estimate: PORT(6) + PROCESS(12) + PID(8) + FRAMEWORK(15) + STATUS(12) + PROJECT(15) = 68
+        // Plus borders/padding: ~12 chars
+        let reserved = 80;
+        let available = self.terminal_width.saturating_sub(reserved);
+
+        // Scale between 15 (min) and 60 (max)
+        available.clamp(15, 60)
     }
 
     /// Display ports in table format
@@ -280,9 +311,9 @@ impl Display {
 
                 if rest.len() > 1 {
                     let desc = format!("{} {}", cmd_name, rest[1..].join(" "));
-                    return self.truncate(&desc, 30);
+                    return self.truncate(&desc);
                 } else {
-                    return self.truncate(&cmd_name, 30);
+                    return self.truncate(&cmd_name);
                 }
             }
         }
@@ -290,30 +321,77 @@ impl Display {
         // Python: "python manage.py runserver" → "manage.py runserver"
         if first.contains("python") && parts.len() > 2 {
             let desc = parts[2..].join(" ");
-            return self.truncate(&desc, 30);
+            return self.truncate(&desc);
         }
 
         // Cargo: "cargo run --bin server" → "run --bin server"
         if first.contains("cargo") && parts.len() > 1 {
             let desc = parts[1..].join(" ");
-            return self.truncate(&desc, 30);
+            return self.truncate(&desc);
         }
 
         // Docker: show container count from command
         if first.contains("docker") {
-            return self.truncate(cmd_line, 30);
+            return self.truncate(cmd_line);
         }
 
         // Default: return process name
-        self.truncate(process_name, 30)
+        self.truncate(process_name)
     }
 
-    /// Truncate string to max length with ellipsis
-    fn truncate(&self, text: &str, max_len: usize) -> String {
-        if text.len() <= max_len {
+    /// Truncate string to calculated length with ellipsis
+    fn truncate(&self, text: &str) -> String {
+        use unicode_width::UnicodeWidthStr;
+
+        let max_len = self.calculate_truncation_length();
+        let text_width = text.width();
+
+        if text_width <= max_len {
             text.to_string()
         } else {
-            format!("{}...", &text[..max_len - 3])
+            // Find the byte position where we should truncate
+            let mut current_width = 0;
+            let mut byte_pos = 0;
+
+            for (pos, ch) in text.char_indices() {
+                let ch_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+                if current_width + ch_width + 3 > max_len {
+                    // +3 for "..."
+                    break;
+                }
+                current_width += ch_width;
+                byte_pos = pos + ch.len_utf8();
+            }
+
+            format!("{}...", &text[..byte_pos])
+        }
+    }
+
+    /// Truncate string to explicit length (for testing)
+    #[cfg(test)]
+    fn truncate_to(&self, text: &str, max_len: usize) -> String {
+        use unicode_width::UnicodeWidthStr;
+
+        let text_width = text.width();
+
+        if text_width <= max_len {
+            text.to_string()
+        } else {
+            // Find the byte position where we should truncate
+            let mut current_width = 0;
+            let mut byte_pos = 0;
+
+            for (pos, ch) in text.char_indices() {
+                let ch_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+                if current_width + ch_width + 3 > max_len {
+                    // +3 for "..."
+                    break;
+                }
+                current_width += ch_width;
+                byte_pos = pos + ch.len_utf8();
+            }
+
+            format!("{}...", &text[..byte_pos])
         }
     }
 }
@@ -343,12 +421,12 @@ mod tests {
     fn test_colorize_with_colors() {
         // Force enable colors for this test
         colored::control::set_override(true);
-        
+
         let display = Display::new(true, false);
         let result = display.colorize("test", Color::Green);
         // Should contain ANSI color codes
         assert!(result.contains("\x1b["));
-        
+
         // Reset color override
         colored::control::unset_override();
     }
@@ -364,12 +442,12 @@ mod tests {
     fn test_new_marker_with_colors() {
         // Force enable colors for this test
         colored::control::set_override(true);
-        
+
         let display = Display::new(true, false);
         let marker = display.new_marker();
         assert!(marker.contains("▲ NEW"));
         assert!(marker.contains("\x1b[")); // ANSI codes
-        
+
         // Reset color override
         colored::control::unset_override();
     }
@@ -384,12 +462,12 @@ mod tests {
     fn test_closed_marker_with_colors() {
         // Force enable colors for this test
         colored::control::set_override(true);
-        
+
         let display = Display::new(true, false);
         let marker = display.closed_marker();
         assert!(marker.contains("▼ CLOSED"));
         assert!(marker.contains("\x1b["));
-        
+
         // Reset color override
         colored::control::unset_override();
     }
@@ -404,12 +482,12 @@ mod tests {
     fn test_success_marker_with_colors() {
         // Force enable colors for this test
         colored::control::set_override(true);
-        
+
         let display = Display::new(true, false);
         let marker = display.success_marker();
         assert!(marker.contains("✓"));
         assert!(marker.contains("\x1b["));
-        
+
         // Reset color override
         colored::control::unset_override();
     }
@@ -424,12 +502,12 @@ mod tests {
     fn test_error_marker_with_colors() {
         // Force enable colors for this test
         colored::control::set_override(true);
-        
+
         let display = Display::new(true, false);
         let marker = display.error_marker();
         assert!(marker.contains("✗"));
         assert!(marker.contains("\x1b["));
-        
+
         // Reset color override
         colored::control::unset_override();
     }
@@ -505,7 +583,7 @@ mod tests {
     fn test_format_cpu_percent_with_colors() {
         // Force enable colors for this test
         colored::control::set_override(true);
-        
+
         let display = Display::new(true, false);
         let high = display.format_cpu_percent(30.0, "30.0");
         let medium = display.format_cpu_percent(10.0, "10.0");
@@ -515,7 +593,7 @@ mod tests {
         assert!(high.contains("\x1b[")); // red
         assert!(medium.contains("\x1b[")); // yellow
         assert!(low.contains("\x1b[")); // green
-        
+
         // Reset color override
         colored::control::unset_override();
     }
@@ -561,21 +639,24 @@ mod tests {
 
     #[test]
     fn test_format_command_node() {
-        let display = Display::new(false, false);
+        // Use explicit width for deterministic testing
+        let display = Display::with_width(150, false, false);
         let result = display.format_command("node /path/to/next dev", "node");
         assert_eq!(result, "next dev");
     }
 
     #[test]
     fn test_format_command_python() {
-        let display = Display::new(false, false);
+        // Use explicit width for deterministic testing
+        let display = Display::with_width(150, false, false);
         let result = display.format_command("python manage.py runserver", "python");
         assert_eq!(result, "runserver");
     }
 
     #[test]
     fn test_format_command_cargo() {
-        let display = Display::new(false, false);
+        // Use explicit width for deterministic testing
+        let display = Display::with_width(150, false, false);
         let result = display.format_command("cargo run --bin server", "cargo");
         assert_eq!(result, "run --bin server");
     }
@@ -590,21 +671,21 @@ mod tests {
     #[test]
     fn test_truncate_short() {
         let display = Display::new(false, false);
-        let result = display.truncate("short", 10);
+        let result = display.truncate_to("short", 10);
         assert_eq!(result, "short");
     }
 
     #[test]
     fn test_truncate_long() {
         let display = Display::new(false, false);
-        let result = display.truncate("this is a very long string", 10);
+        let result = display.truncate_to("this is a very long string", 10);
         assert_eq!(result, "this is...");
     }
 
     #[test]
     fn test_truncate_exact() {
         let display = Display::new(false, false);
-        let result = display.truncate("exactly10c", 10);
+        let result = display.truncate_to("exactly10c", 10);
         assert_eq!(result, "exactly10c");
     }
 
@@ -637,7 +718,8 @@ mod tests {
 
     #[test]
     fn snapshot_format_command_patterns() {
-        let display = Display::new(false, false);
+        // Use explicit width for deterministic snapshot testing
+        let display = Display::with_width(150, false, false);
 
         let test_cases = vec![
             ("node /path/to/next dev", "node", "Node.js with next dev"),
@@ -702,7 +784,7 @@ mod tests {
 
         let mut results = String::new();
         for (text, max_len, desc) in test_cases {
-            let truncated = display.truncate(text, max_len);
+            let truncated = display.truncate_to(text, max_len);
             results.push_str(&format!("{}: '{}'\n", desc, truncated));
         }
 
@@ -751,20 +833,23 @@ mod tests {
     fn test_display_uses_shared_colors() {
         // Verify that display.rs uses the shared colors module
         colored::control::set_override(true);
-        
+
         let display = Display::new(true, false);
-        
+
         // Test a few frameworks to ensure they match the shared color module
         let frameworks = vec!["Next.js", "Django", "Rust", "PostgreSQL", "Docker"];
-        
+
         for framework in frameworks {
             let display_result = display.format_framework(Some(framework));
             let shared_result = crate::colors::apply_framework_color(framework, true);
-            
-            assert_eq!(display_result, shared_result, 
-                "Display formatting for {} should match shared colors module", framework);
+
+            assert_eq!(
+                display_result, shared_result,
+                "Display formatting for {} should match shared colors module",
+                framework
+            );
         }
-        
+
         colored::control::unset_override();
     }
 
@@ -836,7 +921,8 @@ mod tests {
 
     #[test]
     fn snapshot_format_command_special_characters() {
-        let display = Display::new(false, false);
+        // Use explicit width for deterministic snapshot testing
+        let display = Display::with_width(150, false, false);
 
         let test_cases = vec![
             (
@@ -888,5 +974,144 @@ mod tests {
         );
 
         insta::assert_snapshot!("uptime_edge_cases", results);
+    }
+
+    // ========== Phase 1: Terminal Width Detection Tests ==========
+
+    #[test]
+    fn test_detect_terminal_width_returns_default() {
+        // RED: Test that terminal width detection returns 80 as default
+        // when terminal size is unavailable (e.g., piped output)
+        let width = Display::detect_terminal_width();
+        assert!(
+            width >= 80,
+            "Terminal width should default to at least 80 columns"
+        );
+    }
+
+    #[test]
+    fn test_display_stores_terminal_width() {
+        // RED: Test that Display struct stores terminal width on construction
+        let display = Display::new(false, false);
+        // Display should have a terminal_width field that's accessible
+        assert!(
+            display.terminal_width >= 80,
+            "Display should store terminal width of at least 80"
+        );
+    }
+
+    // ========== Phase 2: Dynamic Truncation Tests ==========
+
+    #[test]
+    fn test_calculate_truncation_length_scales_with_width() {
+        // RED: Test that truncation length scales with terminal width
+        // 80 cols → ~25 chars, 120 cols → ~40 chars, 200 cols → ~60 chars (max)
+
+        // Create displays with different terminal widths (we'll need a way to set this)
+        let display_80 = Display::with_width(80, false, false);
+        let display_120 = Display::with_width(120, false, false);
+        let display_200 = Display::with_width(200, false, false);
+
+        let len_80 = display_80.calculate_truncation_length();
+        let len_120 = display_120.calculate_truncation_length();
+        let len_200 = display_200.calculate_truncation_length();
+
+        // Verify scaling: wider terminals get more space
+        assert!(
+            len_120 > len_80,
+            "120 cols should allow more chars than 80 cols"
+        );
+        assert!(
+            len_200 > len_120,
+            "200 cols should allow more chars than 120 cols"
+        );
+
+        // Verify reasonable ranges
+        assert!(
+            len_80 >= 15,
+            "Minimum truncation should be at least 15 chars"
+        );
+        assert!(
+            len_200 <= 60,
+            "Maximum truncation should be at most 60 chars"
+        );
+    }
+
+    #[test]
+    fn test_truncate_uses_dynamic_length() {
+        // RED: Test that truncate uses calculated length instead of hardcoded 30
+        let display_narrow = Display::with_width(80, false, false);
+        let display_wide = Display::with_width(200, false, false);
+
+        let long_text = "this is a very long string that should be truncated differently based on terminal width";
+
+        let truncated_narrow = display_narrow.truncate(long_text);
+        let truncated_wide = display_wide.truncate(long_text);
+
+        // Wide terminal should allow more characters
+        assert!(
+            truncated_wide.len() > truncated_narrow.len(),
+            "Wide terminal should truncate at longer length"
+        );
+    }
+
+    // ========== Phase 3: Responsive Column Sizing Tests ==========
+
+    #[test]
+    fn test_format_command_scales_with_terminal_width() {
+        // Test that format_command produces different lengths for different terminal widths
+        let display_narrow = Display::with_width(80, false, false);
+        let display_wide = Display::with_width(200, false, false);
+
+        let long_cmd = "node /path/to/very/long/application/name/that/should/be/truncated/differently.js serve --port 3000 --verbose";
+
+        let formatted_narrow = display_narrow.format_command(long_cmd, "node");
+        let formatted_wide = display_wide.format_command(long_cmd, "node");
+
+        // Wide terminal should show more of the command
+        assert!(
+            formatted_wide.len() > formatted_narrow.len(),
+            "Wide terminal should show more command text"
+        );
+    }
+
+    // ========== Phase 4: Edge Cases Tests ==========
+
+    #[test]
+    fn test_very_narrow_terminal_minimum_truncation() {
+        // Test that very narrow terminals still produce readable output
+        let display_very_narrow = Display::with_width(40, false, false);
+
+        let truncation_len = display_very_narrow.calculate_truncation_length();
+
+        // Should enforce minimum of 15 chars
+        assert!(
+            truncation_len >= 15,
+            "Very narrow terminal should still allow at least 15 chars"
+        );
+    }
+
+    #[test]
+    fn test_unicode_truncation() {
+        // Test that unicode characters are handled correctly
+        let display = Display::with_width(80, false, false);
+
+        let unicode_text = "Hello 你好世界 World";
+        let truncated = display.truncate_to(unicode_text, 10);
+
+        // Should not panic and should produce valid output
+        assert!(
+            !truncated.is_empty(),
+            "Unicode truncation should produce output"
+        );
+    }
+
+    #[test]
+    fn test_piped_output_uses_default_width() {
+        // Test that when terminal size is unavailable, we default to 80
+        let width = Display::detect_terminal_width();
+
+        // Should be at least 80 (the default)
+        assert!(width >= 80, "Piped output should default to 80 columns");
     }
 }

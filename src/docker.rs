@@ -31,9 +31,7 @@ impl DockerClient {
             Docker::connect_with_local_defaults().context("Failed to connect to Docker daemon")?;
 
         // Fetch containers using API
-        let containers = Self::fetch_containers(&docker)
-            .await
-            .unwrap_or_default();
+        let containers = Self::fetch_containers(&docker).await.unwrap_or_default();
 
         Ok(Self {
             containers,

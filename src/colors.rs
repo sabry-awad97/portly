@@ -168,21 +168,24 @@ mod tests {
     use super::*;
 
     // Phase 1: Framework color mapping tests
-    
+
     #[test]
     fn test_framework_colors_javascript() {
         assert_eq!(get_framework_color("Next.js"), FrameworkColor::Cyan);
         assert_eq!(get_framework_color("Nuxt"), FrameworkColor::Cyan);
         assert_eq!(get_framework_color("Gatsby"), FrameworkColor::Cyan);
-        
+
         assert_eq!(get_framework_color("Vite"), FrameworkColor::BrightMagenta);
-        assert_eq!(get_framework_color("Webpack"), FrameworkColor::BrightMagenta);
+        assert_eq!(
+            get_framework_color("Webpack"),
+            FrameworkColor::BrightMagenta
+        );
         assert_eq!(get_framework_color("Parcel"), FrameworkColor::BrightMagenta);
-        
+
         assert_eq!(get_framework_color("React"), FrameworkColor::Blue);
         assert_eq!(get_framework_color("Vue"), FrameworkColor::Blue);
         assert_eq!(get_framework_color("Angular"), FrameworkColor::Blue);
-        
+
         assert_eq!(get_framework_color("Node.js"), FrameworkColor::Green);
         assert_eq!(get_framework_color("Express"), FrameworkColor::Green);
     }
@@ -192,14 +195,14 @@ mod tests {
         assert_eq!(get_framework_color("Django"), FrameworkColor::Yellow);
         assert_eq!(get_framework_color("Flask"), FrameworkColor::Yellow);
         assert_eq!(get_framework_color("FastAPI"), FrameworkColor::Yellow);
-        
+
         assert_eq!(get_framework_color("Rails"), FrameworkColor::Red);
         assert_eq!(get_framework_color("Ruby"), FrameworkColor::Red);
-        
+
         assert_eq!(get_framework_color("Laravel"), FrameworkColor::BrightBlue);
         assert_eq!(get_framework_color("Symfony"), FrameworkColor::BrightBlue);
         assert_eq!(get_framework_color("PHP"), FrameworkColor::BrightBlue);
-        
+
         assert_eq!(get_framework_color("Spring"), FrameworkColor::Green);
         assert_eq!(get_framework_color(".NET"), FrameworkColor::BrightCyan);
     }
@@ -215,20 +218,23 @@ mod tests {
     fn test_framework_colors_databases() {
         assert_eq!(get_framework_color("PostgreSQL"), FrameworkColor::Blue);
         assert_eq!(get_framework_color("MySQL"), FrameworkColor::Blue);
-        
+
         assert_eq!(get_framework_color("Redis"), FrameworkColor::Green);
         assert_eq!(get_framework_color("MongoDB"), FrameworkColor::Green);
-        
+
         assert_eq!(get_framework_color("nginx"), FrameworkColor::BrightGreen);
         assert_eq!(get_framework_color("RabbitMQ"), FrameworkColor::BrightGreen);
-        
+
         assert_eq!(get_framework_color("Docker"), FrameworkColor::BrightBlue);
     }
 
     #[test]
     fn test_framework_colors_unknown() {
         assert_eq!(get_framework_color("Unknown"), FrameworkColor::Normal);
-        assert_eq!(get_framework_color("CustomFramework"), FrameworkColor::Normal);
+        assert_eq!(
+            get_framework_color("CustomFramework"),
+            FrameworkColor::Normal
+        );
         assert_eq!(get_framework_color(""), FrameworkColor::Normal);
     }
 
@@ -238,12 +244,12 @@ mod tests {
     fn test_apply_framework_color_with_colors() {
         // Force enable colors for this test
         colored::control::set_override(true);
-        
+
         let result = apply_framework_color("Next.js", true);
         // Should contain ANSI color codes
         assert!(result.contains("\x1b["));
         assert!(result.contains("Next.js"));
-        
+
         // Reset color override
         colored::control::unset_override();
     }
@@ -259,29 +265,43 @@ mod tests {
     #[test]
     fn test_apply_framework_color_all_categories() {
         colored::control::set_override(true);
-        
+
         let frameworks = vec![
-            "Next.js", "Vite", "React", "Node.js",
-            "Django", "Rails", "Laravel", "Spring", ".NET",
-            "Rust", "Go",
-            "PostgreSQL", "Redis", "nginx", "Docker",
-            "Unknown"
+            "Next.js",
+            "Vite",
+            "React",
+            "Node.js",
+            "Django",
+            "Rails",
+            "Laravel",
+            "Spring",
+            ".NET",
+            "Rust",
+            "Go",
+            "PostgreSQL",
+            "Redis",
+            "nginx",
+            "Docker",
+            "Unknown",
         ];
-        
+
         for framework in frameworks {
             let colored_result = apply_framework_color(framework, true);
             let plain_result = apply_framework_color(framework, false);
-            
+
             // Colored version should contain ANSI codes (except for "Unknown" which is Normal)
             if framework != "Unknown" {
-                assert!(colored_result.contains("\x1b["), 
-                    "Framework {} should have color codes", framework);
+                assert!(
+                    colored_result.contains("\x1b["),
+                    "Framework {} should have color codes",
+                    framework
+                );
             }
-            
+
             // Plain version should match framework name exactly
             assert_eq!(plain_result, framework);
         }
-        
+
         colored::control::unset_override();
     }
 
@@ -289,7 +309,7 @@ mod tests {
     fn test_apply_framework_color_empty_string() {
         let result = apply_framework_color("", false);
         assert_eq!(result, "");
-        
+
         let result_colored = apply_framework_color("", true);
         assert_eq!(result_colored, "");
     }
@@ -316,11 +336,11 @@ mod tests {
     fn test_apply_framework_color_special_characters() {
         // Test frameworks with special characters
         let frameworks = vec![".NET", "Node.js"];
-        
+
         for framework in frameworks {
             let plain = apply_framework_color(framework, false);
             assert_eq!(plain, framework);
-            
+
             colored::control::set_override(true);
             let colored_result = apply_framework_color(framework, true);
             assert!(colored_result.contains(framework));
@@ -333,34 +353,58 @@ mod tests {
         // Ensure all frameworks return a valid color
         let all_frameworks = vec![
             // JavaScript/TypeScript
-            "Next.js", "Nuxt", "Gatsby",
-            "Vite", "Webpack", "Parcel",
-            "React", "Vue", "Angular",
-            "Node.js", "Express",
+            "Next.js",
+            "Nuxt",
+            "Gatsby",
+            "Vite",
+            "Webpack",
+            "Parcel",
+            "React",
+            "Vue",
+            "Angular",
+            "Node.js",
+            "Express",
             // Backend
-            "Django", "Flask", "FastAPI",
-            "Rails", "Ruby",
-            "Laravel", "Symfony", "PHP",
-            "Spring", ".NET",
+            "Django",
+            "Flask",
+            "FastAPI",
+            "Rails",
+            "Ruby",
+            "Laravel",
+            "Symfony",
+            "PHP",
+            "Spring",
+            ".NET",
             // Systems
-            "Rust", "Trunk", "Go",
+            "Rust",
+            "Trunk",
+            "Go",
             // Databases & Services
-            "PostgreSQL", "MySQL",
-            "Redis", "MongoDB",
-            "nginx", "RabbitMQ",
+            "PostgreSQL",
+            "MySQL",
+            "Redis",
+            "MongoDB",
+            "nginx",
+            "RabbitMQ",
             "Docker",
         ];
-        
+
         for framework in all_frameworks {
             let color = get_framework_color(framework);
             // Should not panic and should return a valid color
-            assert!(matches!(color, 
-                FrameworkColor::Cyan | FrameworkColor::BrightMagenta | 
-                FrameworkColor::Blue | FrameworkColor::Green | 
-                FrameworkColor::Yellow | FrameworkColor::Red | 
-                FrameworkColor::BrightRed | FrameworkColor::BrightBlue | 
-                FrameworkColor::BrightCyan | FrameworkColor::BrightGreen | 
-                FrameworkColor::Normal
+            assert!(matches!(
+                color,
+                FrameworkColor::Cyan
+                    | FrameworkColor::BrightMagenta
+                    | FrameworkColor::Blue
+                    | FrameworkColor::Green
+                    | FrameworkColor::Yellow
+                    | FrameworkColor::Red
+                    | FrameworkColor::BrightRed
+                    | FrameworkColor::BrightBlue
+                    | FrameworkColor::BrightCyan
+                    | FrameworkColor::BrightGreen
+                    | FrameworkColor::Normal
             ));
         }
     }
@@ -369,11 +413,15 @@ mod tests {
     fn test_color_consistency_across_modules() {
         // Verify that the same framework always gets the same color
         let frameworks = vec!["Next.js", "Django", "Rust", "PostgreSQL"];
-        
+
         for framework in frameworks {
             let color1 = get_framework_color(framework);
             let color2 = get_framework_color(framework);
-            assert_eq!(color1, color2, "Color should be consistent for {}", framework);
+            assert_eq!(
+                color1, color2,
+                "Color should be consistent for {}",
+                framework
+            );
         }
     }
 
@@ -381,11 +429,14 @@ mod tests {
     fn test_apply_framework_color_no_ansi_when_disabled() {
         // Ensure no ANSI codes when colors are disabled
         let frameworks = vec!["Next.js", "Django", "Rust", "PostgreSQL", "Unknown"];
-        
+
         for framework in frameworks {
             let result = apply_framework_color(framework, false);
-            assert!(!result.contains("\x1b["), 
-                "Framework {} should not have ANSI codes when colors disabled", framework);
+            assert!(
+                !result.contains("\x1b["),
+                "Framework {} should not have ANSI codes when colors disabled",
+                framework
+            );
             assert_eq!(result, framework);
         }
     }
@@ -395,7 +446,7 @@ mod tests {
         // Test FrameworkColor enum equality
         assert_eq!(FrameworkColor::Cyan, FrameworkColor::Cyan);
         assert_ne!(FrameworkColor::Cyan, FrameworkColor::Blue);
-        
+
         // Test that same framework always returns same color
         let color1 = get_framework_color("Next.js");
         let color2 = get_framework_color("Next.js");
@@ -408,7 +459,7 @@ mod tests {
         let unicode_framework = "框架";
         let result = apply_framework_color(unicode_framework, false);
         assert_eq!(result, unicode_framework);
-        
+
         let result_colored = apply_framework_color(unicode_framework, true);
         assert!(result_colored.contains(unicode_framework));
     }

@@ -229,18 +229,21 @@ mod tests {
     fn test_details_uses_shared_colors() {
         // Verify that details.rs uses the shared colors module
         colored::control::set_override(true);
-        
+
         // Test a few frameworks to ensure they match the shared color module
         let frameworks = vec!["Next.js", "Django", "Rust", "PostgreSQL", "Docker"];
-        
+
         for framework in frameworks {
             let details_result = format_framework(framework, true);
             let shared_result = crate::colors::apply_framework_color(framework, true);
-            
-            assert_eq!(details_result, shared_result, 
-                "Details formatting for {} should match shared colors module", framework);
+
+            assert_eq!(
+                details_result, shared_result,
+                "Details formatting for {} should match shared colors module",
+                framework
+            );
         }
-        
+
         colored::control::unset_override();
     }
 }

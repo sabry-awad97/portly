@@ -38,7 +38,9 @@ impl Scanner {
     /// * `platform` - Platform-specific implementation for port scanning
     pub async fn new(platform: Box<dyn Platform>) -> Self {
         // Try to create async Docker client, fallback to empty client if it fails
-        let docker_client = DockerClient::new().await.unwrap_or_else(|_| DockerClient::empty());
+        let docker_client = DockerClient::new()
+            .await
+            .unwrap_or_else(|_| DockerClient::empty());
 
         Self {
             platform,
