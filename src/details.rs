@@ -136,24 +136,7 @@ fn format_status(status: crate::process::ProcessStatus, use_colors: bool) -> Str
 
 /// Format framework with colors
 fn format_framework(framework: &str, use_colors: bool) -> String {
-    if !use_colors {
-        return framework.to_string();
-    }
-
-    match framework {
-        "Next.js" | "Nuxt" | "Gatsby" => framework.cyan().to_string(),
-        "Vite" | "Webpack" | "Parcel" => framework.bright_magenta().to_string(),
-        "React" | "Vue" | "Angular" => framework.blue().to_string(),
-        "Node.js" | "Express" => framework.green().to_string(),
-        "Django" | "Flask" | "FastAPI" => framework.yellow().to_string(),
-        "Rails" | "Ruby" => framework.red().to_string(),
-        "Rust" | "Trunk" => framework.bright_red().to_string(),
-        "Go" => framework.cyan().to_string(),
-        "PostgreSQL" | "MySQL" => framework.blue().to_string(),
-        "Redis" | "MongoDB" => framework.green().to_string(),
-        "Docker" => framework.bright_blue().to_string(),
-        _ => framework.normal().to_string(),
-    }
+    crate::colors::apply_framework_color(framework, use_colors)
 }
 
 /// Format memory in MB or GB
@@ -240,5 +223,24 @@ mod tests {
     fn test_get_git_branch_not_a_repo() {
         let result = get_git_branch(Path::new("/nonexistent"));
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_details_uses_shared_colors() {
+        // Verify that details.rs uses the shared colors module
+        colored::control::set_override(true);
+        
+        // Test a few frameworks to ensure they match the shared color module
+        let frameworks = vec!["Next.js", "Django", "Rust", "PostgreSQL", "Docker"];
+        
+        for framework in frameworks {
+            let details_result = format_framework(framework, true);
+            let shared_result = crate::colors::apply_framework_color(framework, true);
+            
+            assert_eq!(details_result, shared_result, 
+                "Details formatting for {} should match shared colors module", framework);
+        }
+        
+        colored::control::unset_override();
     }
 }

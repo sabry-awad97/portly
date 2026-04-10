@@ -86,39 +86,7 @@ impl Display {
 
     fn format_framework(&self, framework: Option<&str>) -> String {
         let framework_str = framework.unwrap_or("—");
-
-        if !self.use_colors {
-            return framework_str.to_string();
-        }
-
-        // Color frameworks by type
-        match framework_str {
-            // JavaScript/TypeScript frameworks
-            "Next.js" | "Nuxt" | "Gatsby" => framework_str.cyan().to_string(),
-            "Vite" | "Webpack" | "Parcel" => framework_str.bright_magenta().to_string(),
-            "React" | "Vue" | "Angular" => framework_str.blue().to_string(),
-            "Node.js" | "Express" => framework_str.green().to_string(),
-
-            // Backend frameworks
-            "Django" | "Flask" | "FastAPI" => framework_str.yellow().to_string(),
-            "Rails" | "Ruby" => framework_str.red().to_string(),
-            "Laravel" | "Symfony" | "PHP" => framework_str.bright_blue().to_string(),
-            "Spring" => framework_str.green().to_string(),
-            ".NET" => framework_str.bright_cyan().to_string(),
-
-            // Systems languages
-            "Rust" | "Trunk" => framework_str.bright_red().to_string(),
-            "Go" => framework_str.cyan().to_string(),
-
-            // Databases & services
-            "PostgreSQL" | "MySQL" => framework_str.blue().to_string(),
-            "Redis" | "MongoDB" => framework_str.green().to_string(),
-            "nginx" | "RabbitMQ" => framework_str.bright_green().to_string(),
-            "Docker" => framework_str.bright_blue().to_string(),
-
-            // Default
-            _ => framework_str.normal().to_string(),
-        }
+        crate::colors::apply_framework_color(framework_str, self.use_colors)
     }
 
     /// Apply color to text if colors are enabled
@@ -777,6 +745,27 @@ mod tests {
         }
 
         insta::assert_snapshot!("framework_no_color", results);
+    }
+
+    #[test]
+    fn test_display_uses_shared_colors() {
+        // Verify that display.rs uses the shared colors module
+        colored::control::set_override(true);
+        
+        let display = Display::new(true, false);
+        
+        // Test a few frameworks to ensure they match the shared color module
+        let frameworks = vec!["Next.js", "Django", "Rust", "PostgreSQL", "Docker"];
+        
+        for framework in frameworks {
+            let display_result = display.format_framework(Some(framework));
+            let shared_result = crate::colors::apply_framework_color(framework, true);
+            
+            assert_eq!(display_result, shared_result, 
+                "Display formatting for {} should match shared colors module", framework);
+        }
+        
+        colored::control::unset_override();
     }
 
     #[test]

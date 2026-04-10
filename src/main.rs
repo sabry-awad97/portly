@@ -1,4 +1,5 @@
 mod cli;
+mod colors;
 mod commands;
 mod config;
 mod details;
