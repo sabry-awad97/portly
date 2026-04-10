@@ -10,7 +10,7 @@ pub fn handle_list(scanner: &mut Scanner, cli: &Cli, config: &Config) -> anyhow:
     // Finish progress before displaying results
     progress.finish();
 
-    let display = display::Display::new(!cli.no_color, cli.json, config);
+    let display = display::Display::new(!cli.no_color, cli.json, config, cli.ascii);
     display.show_ports(&ports);
 
     Ok(())

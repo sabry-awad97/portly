@@ -25,6 +25,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub quiet: bool,
 
+    /// Use ASCII-only output (no Unicode symbols)
+    #[arg(long, global = true)]
+    pub ascii: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -95,5 +99,16 @@ pub enum ConfigAction {
 impl Cli {
     pub fn parse_args() -> Self {
         Self::parse()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cli_accepts_ascii_flag() {
+        let cli = Cli::parse_from(["portly", "--ascii", "list"]);
+        assert!(cli.ascii);
     }
 }

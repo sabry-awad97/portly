@@ -15,7 +15,7 @@ pub fn handle_watch(
     config: &Config,
 ) -> anyhow::Result<()> {
     // Create Display instance
-    let display = Display::new(!cli.no_color, cli.json, config);
+    let display = Display::new(!cli.no_color, cli.json, config, cli.ascii);
 
     // Set up Ctrl+C handler
     let running = Arc::new(AtomicBool::new(true));

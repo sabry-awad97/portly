@@ -7,6 +7,7 @@ pub fn handle_details(
     no_prompt: bool,
     json: bool,
     no_color: bool,
+    ascii: bool,
 ) -> anyhow::Result<()> {
     let port_info = scanner
         .get_port_details(port)
@@ -35,7 +36,7 @@ pub fn handle_details(
         println!("{}", serde_json::to_string_pretty(&json_output)?);
     } else {
         // Detailed view
-        details::show_port_details(&port_info, &process_info, scanner, !no_color)?;
+        details::show_port_details(&port_info, &process_info, scanner, !no_color, ascii)?;
 
         // Interactive kill prompt
         if !no_prompt {
