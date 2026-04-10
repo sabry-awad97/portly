@@ -54,7 +54,7 @@ async fn run() -> anyhow::Result<()> {
             commands::handle_clean(&mut scanner, execute, cli.json, cli.no_color)?;
         }
         Some(Commands::Ps) => {
-            commands::handle_ps(&mut scanner, cli.all, cli.json, cli.no_color)?;
+            commands::handle_ps(&mut scanner, cli.all, cli.json, cli.no_color, &config)?;
         }
         Some(Commands::Watch { interval }) => {
             commands::handle_watch(&mut scanner, interval, &cli, &config)?;

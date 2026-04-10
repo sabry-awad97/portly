@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use tabled::settings::Style;
 
 /// Configuration structure for Portly.
 ///
@@ -31,6 +32,39 @@ pub struct Config {
 pub struct DisplayConfig {
     pub colors: bool,
     pub compact: bool,
+    #[serde(default = "default_table_style")]
+    pub table_style: String,
+}
+
+fn default_table_style() -> String {
+    "rounded".to_string()
+}
+
+/// Apply table style to a table based on style name.
+///
+/// Supports: rounded, ascii, modern, blank, empty (case-insensitive).
+/// Uses rounded style for unknown values.
+pub fn apply_table_style(table: &mut tabled::Table, style_name: &str) {
+    match style_name.to_lowercase().as_str() {
+        "rounded" => {
+            table.with(Style::rounded());
+        }
+        "ascii" => {
+            table.with(Style::ascii());
+        }
+        "modern" => {
+            table.with(Style::modern());
+        }
+        "blank" => {
+            table.with(Style::blank());
+        }
+        "empty" => {
+            table.with(Style::empty());
+        }
+        _ => {
+            table.with(Style::rounded());
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -51,6 +85,7 @@ impl Default for Config {
             display: DisplayConfig {
                 colors: true,
                 compact: false,
+                table_style: "rounded".to_string(),
             },
             filters: FilterConfig {
                 exclude_system: true,
@@ -130,8 +165,14 @@ impl Config {
         }
 
         let default_config = Self::default();
-        let toml_string = toml::to_string_pretty(&default_config)
+        let mut toml_string = toml::to_string_pretty(&default_config)
             .context("Failed to serialize default config")?;
+
+        // Add helpful comment about table_style options
+        toml_string = toml_string.replace(
+            "[display]",
+            "[display]\n# Table style options: rounded (default), ascii, modern, blank, empty\n# Use 'ascii' for terminals without Unicode support",
+        );
 
         fs::write(path, toml_string).context("Failed to write config file")?;
 
@@ -167,6 +208,15 @@ mod tests {
                 .exclude_processes
                 .contains(&"Chrome".to_string())
         );
+    }
+
+    #[test]
+    fn test_display_config_has_table_style_field() {
+        // Arrange & Act
+        let config = Config::default();
+
+        // Assert - DisplayConfig should have table_style field with default "rounded"
+        assert_eq!(config.display.table_style, "rounded");
     }
 
     #[test]
@@ -297,6 +347,31 @@ colors = false
     }
 
     #[test]
+    fn test_create_default_includes_table_style_comment() {
+        // Arrange
+        let temp_dir = std::env::temp_dir();
+        let config_path = temp_dir.join("portly_test_comment.toml");
+
+        // Cleanup any existing file
+        let _ = fs::remove_file(&config_path);
+
+        // Act
+        Config::create_default(&config_path).unwrap();
+
+        // Assert - config file should include helpful comment about table styles
+        let content = fs::read_to_string(&config_path).unwrap();
+        assert!(content.contains("Table style options"));
+        assert!(content.contains("rounded"));
+        assert!(content.contains("ascii"));
+        assert!(content.contains("modern"));
+        assert!(content.contains("blank"));
+        assert!(content.contains("empty"));
+
+        // Cleanup
+        let _ = fs::remove_file(&config_path);
+    }
+
+    #[test]
     fn test_serialize_config_to_toml() {
         // Arrange
         let config = Config::default();
@@ -312,6 +387,92 @@ colors = false
         assert!(toml_string.contains("Spotify"));
     }
 
+    #[test]
+    fn test_serialize_config_includes_table_style() {
+        // Arrange
+        let config = Config::default();
+
+        // Act
+        let toml_string = toml::to_string_pretty(&config).unwrap();
+
+        // Assert - serialized config should include table_style
+        assert!(toml_string.contains("table_style"));
+        assert!(toml_string.contains("rounded"));
+    }
+
+    #[test]
+    fn test_deserialize_config_without_table_style() {
+        // Arrange - old config file without table_style field
+        let toml_content = r#"
+[display]
+colors = false
+compact = true
+
+[filters]
+exclude_system = false
+exclude_processes = ["TestApp"]
+
+[defaults]
+show_all = true
+json_output = false
+"#;
+
+        // Act
+        let config: Config = toml::from_str(toml_content).unwrap();
+
+        // Assert - should default to "rounded" for backward compatibility
+        assert_eq!(config.display.table_style, "rounded");
+        assert!(!config.display.colors);
+        assert!(config.display.compact);
+    }
+
+    #[test]
+    fn test_apply_table_style_valid_styles() {
+        use tabled::Table;
+
+        // Test all valid style names by applying them to a table
+        let data = vec![("Port", "Process"), ("3000", "node")];
+
+        let mut table = Table::new(data.clone());
+        apply_table_style(&mut table, "rounded");
+
+        let mut table = Table::new(data.clone());
+        apply_table_style(&mut table, "ascii");
+
+        let mut table = Table::new(data.clone());
+        apply_table_style(&mut table, "modern");
+
+        let mut table = Table::new(data.clone());
+        apply_table_style(&mut table, "blank");
+
+        let mut table = Table::new(data.clone());
+        apply_table_style(&mut table, "empty");
+
+        // Test case insensitivity
+        let mut table = Table::new(data.clone());
+        apply_table_style(&mut table, "ROUNDED");
+
+        let mut table = Table::new(data);
+        apply_table_style(&mut table, "AsCiI");
+    }
+
+    #[test]
+    fn test_apply_table_style_invalid_falls_back() {
+        use tabled::Table;
+
+        // Test that invalid style names fall back to rounded (default)
+        let data = vec![("Port", "Process"), ("3000", "node")];
+
+        let mut table_invalid = Table::new(data.clone());
+        apply_table_style(&mut table_invalid, "invalid_style");
+
+        let mut table_default = Table::new(data);
+        apply_table_style(&mut table_default, "rounded");
+
+        // Both should produce the same output (rounded style)
+        assert_eq!(table_invalid.to_string(), table_default.to_string());
+    }
+
     // ========== Property-Based Tests ==========
 
     // Implement Arbitrary for Config structs
@@ -320,8 +481,12 @@ colors = false
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-            (any::<bool>(), any::<bool>())
-                .prop_map(|(colors, compact)| DisplayConfig { colors, compact })
+            (any::<bool>(), any::<bool>(), "[a-z]{3,10}")
+                .prop_map(|(colors, compact, table_style)| DisplayConfig {
+                    colors,
+                    compact,
+                    table_style: table_style.to_string(),
+                })
                 .boxed()
         }
     }

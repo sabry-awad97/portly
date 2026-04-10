@@ -1,7 +1,7 @@
 use crate::{cli::Cli, config::Config, display, progress::ProgressIndicator, scanner::Scanner};
 use anyhow::Context;
 
-pub fn handle_list(scanner: &mut Scanner, cli: &Cli, _config: &Config) -> anyhow::Result<()> {
+pub fn handle_list(scanner: &mut Scanner, cli: &Cli, config: &Config) -> anyhow::Result<()> {
     // Show progress indicator during scan
     let progress = ProgressIndicator::new("Scanning ports...", cli.json, cli.quiet);
 
@@ -10,7 +10,7 @@ pub fn handle_list(scanner: &mut Scanner, cli: &Cli, _config: &Config) -> anyhow
     // Finish progress before displaying results
     progress.finish();
 
-    let display = display::Display::new(!cli.no_color, cli.json);
+    let display = display::Display::new(!cli.no_color, cli.json, config);
     display.show_ports(&ports);
 
     Ok(())

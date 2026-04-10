@@ -1,6 +1,6 @@
 use crate::process::{PortInfo, ProcessStatus};
 use colored::*;
-use tabled::{Table, Tabled, settings::Style};
+use tabled::{Table, Tabled};
 
 /// Display formatter for port information.
 ///
@@ -11,13 +11,14 @@ use tabled::{Table, Tabled, settings::Style};
 /// ```no_run
 /// use portly::display::Display;
 ///
-/// let display = Display::new(true, false); // colors enabled, not JSON
+/// let display = Display::new(true, false, &test_config()); // colors enabled, not JSON
 /// display.show_ports(&ports);
 /// ```
 pub struct Display {
     use_colors: bool,
     json_mode: bool,
     terminal_width: usize,
+    table_style: String,
 }
 
 impl Display {
@@ -28,11 +29,12 @@ impl Display {
             .unwrap_or(80)
     }
 
-    pub fn new(use_colors: bool, json_mode: bool) -> Self {
+    pub fn new(use_colors: bool, json_mode: bool, config: &crate::config::Config) -> Self {
         Self {
             use_colors,
             json_mode,
             terminal_width: Self::detect_terminal_width(),
+            table_style: config.display.table_style.clone(),
         }
     }
 
@@ -43,6 +45,7 @@ impl Display {
             use_colors,
             json_mode,
             terminal_width,
+            table_style: "rounded".to_string(),
         }
     }
 
@@ -87,7 +90,7 @@ impl Display {
             .collect();
 
         let mut table = Table::new(rows);
-        table.with(Style::rounded());
+        crate::config::apply_table_style(&mut table, &self.table_style);
 
         println!("{}", table);
     }
@@ -237,7 +240,7 @@ impl Display {
             .collect();
 
         let mut table = Table::new(rows);
-        table.with(Style::rounded());
+        crate::config::apply_table_style(&mut table, &self.table_style);
         println!("{}", table);
     }
 
@@ -417,12 +420,56 @@ mod tests {
     use super::*;
     use std::time::SystemTime;
 
+    // Helper to create default config for tests
+    fn test_config() -> crate::config::Config {
+        crate::config::Config::default()
+    }
+
+    #[test]
+    fn test_display_new_accepts_config() {
+        // Arrange
+        let config = test_config();
+
+        // Act - Display::new should accept config parameter
+        let display = Display::new(true, false, &config);
+
+        // Assert - Display should be created successfully
+        assert!(display.use_colors);
+        assert!(!display.json_mode);
+    }
+
+    #[test]
+    fn test_display_uses_configured_table_style() {
+        // Arrange
+        let mut config = test_config();
+        config.display.table_style = "ascii".to_string();
+
+        // Act
+        let display = Display::new(false, false, &config);
+
+        // Assert - Display should store the configured table style
+        assert_eq!(display.table_style, "ascii");
+    }
+
+    #[test]
+    fn test_display_respects_different_table_styles() {
+        // Test that different style names are stored correctly
+        let styles = vec!["rounded", "ascii", "modern", "blank", "empty"];
+
+        for style in styles {
+            let mut config = test_config();
+            config.display.table_style = style.to_string();
+            let display = Display::new(false, false, &config);
+            assert_eq!(display.table_style, style);
+        }
+    }
+
     #[test]
     fn test_colorize_with_colors() {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false);
+        let display = Display::new(true, false, &test_config());
         let result = display.colorize("test", Color::Green);
         // Should contain ANSI color codes
         assert!(result.contains("\x1b["));
@@ -433,7 +480,7 @@ mod tests {
 
     #[test]
     fn test_colorize_without_colors() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let result = display.colorize("test", Color::Green);
         assert_eq!(result, "test");
     }
@@ -443,7 +490,7 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false);
+        let display = Display::new(true, false, &test_config());
         let marker = display.new_marker();
         assert!(marker.contains("▲ NEW"));
         assert!(marker.contains("\x1b[")); // ANSI codes
@@ -454,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_new_marker_without_colors() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         assert_eq!(display.new_marker(), "▲ NEW   ");
     }
 
@@ -463,7 +510,7 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false);
+        let display = Display::new(true, false, &test_config());
         let marker = display.closed_marker();
         assert!(marker.contains("▼ CLOSED"));
         assert!(marker.contains("\x1b["));
@@ -474,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_closed_marker_without_colors() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         assert_eq!(display.closed_marker(), "▼ CLOSED");
     }
 
@@ -483,7 +530,7 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false);
+        let display = Display::new(true, false, &test_config());
         let marker = display.success_marker();
         assert!(marker.contains("✓"));
         assert!(marker.contains("\x1b["));
@@ -494,7 +541,7 @@ mod tests {
 
     #[test]
     fn test_success_marker_without_colors() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         assert_eq!(display.success_marker(), "✓");
     }
 
@@ -503,7 +550,7 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false);
+        let display = Display::new(true, false, &test_config());
         let marker = display.error_marker();
         assert!(marker.contains("✗"));
         assert!(marker.contains("\x1b["));
@@ -514,13 +561,13 @@ mod tests {
 
     #[test]
     fn test_error_marker_without_colors() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         assert_eq!(display.error_marker(), "✗");
     }
 
     #[test]
     fn test_show_watch_event_new_basic() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let port_info = PortInfo {
             port: 3000,
             pid: 1234,
@@ -537,7 +584,7 @@ mod tests {
 
     #[test]
     fn test_show_watch_event_new_with_framework() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let port_info = PortInfo {
             port: 3000,
             pid: 1234,
@@ -553,28 +600,28 @@ mod tests {
 
     #[test]
     fn test_show_watch_event_closed() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         display.show_watch_event_closed(3000);
         // Expected output: "[HH:MM:SS] ▼ CLOSED :3000"
     }
 
     #[test]
     fn test_format_cpu_percent_high() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let result = display.format_cpu_percent(30.0, "30.0");
         assert_eq!(result, "30.0"); // no color
     }
 
     #[test]
     fn test_format_cpu_percent_medium() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let result = display.format_cpu_percent(10.0, "10.0");
         assert_eq!(result, "10.0");
     }
 
     #[test]
     fn test_format_cpu_percent_low() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let result = display.format_cpu_percent(2.0, "2.0");
         assert_eq!(result, "2.0");
     }
@@ -584,7 +631,7 @@ mod tests {
         // Force enable colors for this test
         colored::control::set_override(true);
 
-        let display = Display::new(true, false);
+        let display = Display::new(true, false, &test_config());
         let high = display.format_cpu_percent(30.0, "30.0");
         let medium = display.format_cpu_percent(10.0, "10.0");
         let low = display.format_cpu_percent(2.0, "2.0");
@@ -600,7 +647,7 @@ mod tests {
 
     #[test]
     fn test_show_ps_table_empty() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let processes: Vec<crate::commands::ps::PsProcess> = vec![];
 
         // Should print "No processes found."
@@ -609,13 +656,13 @@ mod tests {
 
     #[test]
     fn test_format_uptime_none() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         assert_eq!(display.format_uptime(None), "—");
     }
 
     #[test]
     fn test_format_uptime_minutes() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let start = std::time::SystemTime::now() - std::time::Duration::from_secs(300); // 5 minutes ago
         let result = display.format_uptime(Some(start));
         assert_eq!(result, "5m");
@@ -623,7 +670,7 @@ mod tests {
 
     #[test]
     fn test_format_uptime_hours() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let start = std::time::SystemTime::now() - std::time::Duration::from_secs(7200); // 2 hours ago
         let result = display.format_uptime(Some(start));
         assert_eq!(result, "2h 0m");
@@ -631,7 +678,7 @@ mod tests {
 
     #[test]
     fn test_format_uptime_days() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let start = std::time::SystemTime::now() - std::time::Duration::from_secs(90000); // 1 day 1 hour ago
         let result = display.format_uptime(Some(start));
         assert_eq!(result, "1d 1h");
@@ -663,28 +710,28 @@ mod tests {
 
     #[test]
     fn test_format_command_empty() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let result = display.format_command("", "myprocess");
         assert_eq!(result, "myprocess");
     }
 
     #[test]
     fn test_truncate_short() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let result = display.truncate_to("short", 10);
         assert_eq!(result, "short");
     }
 
     #[test]
     fn test_truncate_long() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let result = display.truncate_to("this is a very long string", 10);
         assert_eq!(result, "this is...");
     }
 
     #[test]
     fn test_truncate_exact() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let result = display.truncate_to("exactly10c", 10);
         assert_eq!(result, "exactly10c");
     }
@@ -693,7 +740,7 @@ mod tests {
 
     #[test]
     fn snapshot_format_uptime_variations() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let now = SystemTime::now();
 
         // Test various durations
@@ -752,7 +799,7 @@ mod tests {
 
     #[test]
     fn snapshot_color_markers_no_color() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
 
         let markers = format!(
             "New: {}\nClosed: {}\nSuccess: {}\nError: {}",
@@ -767,7 +814,7 @@ mod tests {
 
     #[test]
     fn snapshot_truncate_edge_cases() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
 
         let test_cases = vec![
             ("short", 10, "Short string"),
@@ -793,7 +840,7 @@ mod tests {
 
     #[test]
     fn snapshot_format_status_no_color() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
 
         let statuses = format!(
             "Healthy: {}\nOrphaned: {}\nZombie: {}",
@@ -807,7 +854,7 @@ mod tests {
 
     #[test]
     fn snapshot_format_framework_no_color() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
 
         let frameworks = vec![
             Some("Next.js"),
@@ -834,7 +881,7 @@ mod tests {
         // Verify that display.rs uses the shared colors module
         colored::control::set_override(true);
 
-        let display = Display::new(true, false);
+        let display = Display::new(true, false, &test_config());
 
         // Test a few frameworks to ensure they match the shared color module
         let frameworks = vec!["Next.js", "Django", "Rust", "PostgreSQL", "Docker"];
@@ -855,7 +902,7 @@ mod tests {
 
     #[test]
     fn snapshot_format_cpu_percent_no_color() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
 
         let test_cases = vec![
             (0.5, "0.5", "Very low"),
@@ -878,7 +925,7 @@ mod tests {
 
     #[test]
     fn snapshot_show_ports_json_mode() {
-        let _display = Display::new(false, true);
+        let _display = Display::new(false, true, &test_config());
 
         let ports = vec![
             PortInfo {
@@ -954,7 +1001,7 @@ mod tests {
 
     #[test]
     fn snapshot_format_uptime_edge_cases() {
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         let now = SystemTime::now();
 
         // Edge cases
@@ -992,7 +1039,7 @@ mod tests {
     #[test]
     fn test_display_stores_terminal_width() {
         // RED: Test that Display struct stores terminal width on construction
-        let display = Display::new(false, false);
+        let display = Display::new(false, false, &test_config());
         // Display should have a terminal_width field that's accessible
         assert!(
             display.terminal_width >= 80,

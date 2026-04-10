@@ -12,10 +12,10 @@ pub fn handle_watch(
     scanner: &mut Scanner,
     interval: u64,
     cli: &Cli,
-    _config: &Config,
+    config: &Config,
 ) -> anyhow::Result<()> {
     // Create Display instance
-    let display = Display::new(!cli.no_color, cli.json);
+    let display = Display::new(!cli.no_color, cli.json, config);
 
     // Set up Ctrl+C handler
     let running = Arc::new(AtomicBool::new(true));
